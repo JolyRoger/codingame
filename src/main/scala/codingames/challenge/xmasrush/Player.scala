@@ -9,14 +9,14 @@ import scala.util._
 object Player extends App {
 
   def closest(p: (Int, Int), items: List[(Int, Int)]) = {
-    Console.err.println("closest::p: " + p)
+//    Console.err.println("closest::p: " + p)
     items.foreach(item => Console.err.print(item + " * "))
-    Console.err.println
+//    Console.err.println
     if (items.isEmpty) (-1,-1) else items.minBy(item => euclidean(p, item))
   }
   def euclidean(a: (Int, Int), b: (Int, Int)) = {
     val dist = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
-    Console.err.println(a + " --> " + b + " = " + dist)
+//    Console.err.println(a + " --> " + b + " = " + dist)
     dist
   }
   def possibleDirections(plSquare: (Int, Int), player: String, neighbours: Array[String]) = {
@@ -26,7 +26,7 @@ object Player extends App {
 //    Console.err.println("Right: " + neighbours(1))
 //    Console.err.println("Down: " + neighbours(2))
 //    Console.err.println("Left: " + neighbours(3))
-    Console.err.println(s"plSquare: $plSquare")
+//    Console.err.println(s"plSquare: $plSquare")
 //    neighbours.foreach(a => Console.err.print(a + ":: "))
 //    Console.err.println()
     val upperDown = if (neighbours.head == null) "0" else neighbours.head.split("")(2)
@@ -91,7 +91,7 @@ object Player extends App {
       val itemx = _itemx.toInt
       val itemy = _itemy.toInt
       val itemplayerid = _itemplayerid.toInt
-      items = (itemx, itemy) :: items
+      if (itemplayerid == 0) items = (itemx, itemy) :: items
 //      Console.err.println("itemname: " + itemname)
 //      Console.err.println("itemx: " + itemx)
 //      Console.err.println("itemy: " + itemy)
@@ -99,7 +99,7 @@ object Player extends App {
 //      Console.err.println("------------------------")
     }
 
-    val myItem = (items(1)._1, items(1)._2)/*closest((players(1)._1, players(1)._2), items)*/
+    val myItem = closest((players(1)._1, players(1)._2), items)
 
     val numquests = readInt // the total number of revealed quests for both players
     for (i <- 0 until numquests) {
@@ -147,18 +147,20 @@ object Player extends App {
                           if (players(1)._2 < myItem._2 && players(1)._1 != myItem._1) "DOWN" else
                           if (players(1)._2 > myItem._2 && players(1)._1 != myItem._1) "UP" else "DOWN"
       else if (movetype == "MOVE") {
-        Console.err.println("!!!MYITEM!!!: " + myItem)
-        pb.foreach(p => Console.err.print(p + " "))
+//        Console.err.println("!!!MYITEM!!!: " + myItem)
+//        pb.foreach(p => Console.err.print(p + " "))
         val cls = closest(myItem, pb.keys.toList)
-        Console.err.println("cls: " + cls)
-        Console.err.println("pb(cls): " + pb(cls))
+//        Console.err.println("cls: " + cls)
+//        Console.err.println("pb(cls): " + pb(cls))
         pb(cls)
       } else if (movetype == "PASS") ""
 
 //    Console.err.println("direction: " + direction + " turntype=" + turntype)
 //    Console.err.println("movetype: " + movetype)
+    Console.err.println("I playesr: " + players(1))
     val rowid = if (movetype == "PUSH")
-      (if (players(1)._1 != myItem._1) myItem._1 else myItem._2) + " "
+        (if (direction == "LEFT" || direction == "RIGHT") players(1)._2 else players(1)._1) + " "
+//      (if (players(1)._1 != myItem._1) players(1)._1 else players(1)._2) + " "
     else ""
 
 
