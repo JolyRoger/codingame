@@ -1,8 +1,7 @@
-package codingames.challenge.xmasrush.v1
+//package codingames.challenge.xmasrush.v1
 
 import math._
 import scala.collection.mutable
-
 
 class Graph(N: Int) {
   val adj = (for (i <- 0 until N) yield List[Int]()).toArray
@@ -13,6 +12,22 @@ class Graph(N: Int) {
   def cutEdge(v: Int, w: Int): Unit = {
     adj(v) = adj(v).filter(_ != w)
     adj(w) = adj(w).filter(_ != v)
+  }
+
+  def dfs(v: Int): Array[Int] = {
+    val marked: Array[Boolean] = new Array[Boolean](N)
+    val edgeTo = Array.fill[Int](N)(Int.MaxValue)
+    def internalDfs(v: Int, edges: Array[Int]): Array[Int] = {
+      marked(v) = true
+      for (w <- adj(v)) {
+        if (!marked(w)) {
+          internalDfs(w, edges)
+          edges(w) = v
+        }
+      }
+      edges
+    }
+    internalDfs(v, edgeTo)
   }
 
   def bfs(s: Int) = {
@@ -58,8 +73,21 @@ class Graph(N: Int) {
   * Help the Christmas elves fetch presents in a magical labyrinth!
   **/
 object Player extends App {
-
-  def closest(p: (Int, Int), items: List[(Int, Int)]) = if (items.isEmpty) (-1,-1) else items.minBy(item => euclidean(p, item))
+  def createGraph(inputs: IndexedSeq[Array[String]])= {
+    val graph = new Graph(49)
+    for (i <- 0 until 6) {
+      for (j <- 0 until 6) {
+        if (connected(toNumber((i, j)), toNumber((i, j + 1)), inputs)) graph.addEdge(toNumber((i, j)), toNumber((i, j + 1)))
+        if (connected(toNumber((i, j)), toNumber((i + 1, j)), inputs)) graph.addEdge(toNumber((i, j)), toNumber((i + 1, j)))
+      }
+    }
+    for (k <- 0 until 6) {
+      if (connected((6, k), (6, k + 1), inputs)) graph.addEdge((6, k), (6, k + 1))
+      if (connected((k, 6), (k + 1, 6), inputs)) graph.addEdge((k, 6), (k + 1, 6))
+    }
+    graph
+  }
+  def closest(p: (Int, Int), items: List[(Int, Int)]) = if (items.isEmpty) (3,3) else items.minBy(item => euclidean(p, item))
   def euclidean(a: (Int, Int), b: (Int, Int)) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
   def possibleDirections(plSquare: (Int, Int), player: String, neighbours: Array[String]) = {
     val Array(pUp, pRight, pDown, pLeft) = player split ""
@@ -83,8 +111,8 @@ object Player extends App {
       (plSquare._1 + 1, plSquare._2) -> (if (pRight == "1" && pRight == rightLeft) "RIGHT" else null)
     ).filter(_._2 != null)
   }
-  def toMatrix(number: Int): (Int, Int) = (number / 7, number % 7)
-  def toNumber(point: (Int, Int)): Int = point._1 * 7 + point._2 % 7
+  /*implicit */def toMatrix(number: Int): (Int, Int) = (number / 7, number % 7)
+  implicit def toNumber(point: (Int, Int)): Int = point._1 * 7 + point._2 % 7
   // p1 is directly <result: {UP, DOWN, LEFT, RIGHT, NOTHING}> to p2
   def relation(p1: (Int, Int), p2: (Int, Int)) = if (p1._1 == p2._1 && p1._2 - 1 == p2._2) "DOWN" else
     if (p1._1 == p2._1 && p1._2 + 1 == p2._2) "UP" else
@@ -122,8 +150,8 @@ object Player extends App {
 //    Console.err.println("turntype: " + turntype)
 //    Console.err.println("++++++++++++++++++++++++++++")
 //    var tiles: Array[Array[Int]] =
-    var inputs = for (i <- 0 until 7) yield readLine split " "
-    connected(1,2,inputs)
+    val inputs = for (i <- 0 until 7) yield readLine split " "
+//    connected(1,2,inputs)
 //      for (i <- 0 until 7) {
 //      var inputs = readLine split " "
 //      inputs.flatten.foreach(Console.err.println)
@@ -182,7 +210,7 @@ object Player extends App {
 //    val myItem = (1,2)
     val myItems = items.filter(_._3 == quests(0)(0))
     val myItem = if (myItems.isEmpty) closest((players(1)._1, players(1)._2), items.map(item => (item._1, item._2)))
-                                      else (myItems.head._1, myItems.head._1)
+                                      else (myItems.head._1, myItems.head._2)
 //    Console.err.println(s"myItem2: $myItem")
     // Write an action using println
     // To debug: Console.err.println("Debug messages...")
@@ -221,20 +249,24 @@ object Player extends App {
         if (players(1)._2 < myItem._2 && players(1)._1 != myItem._1) "DOWN" else
         if (players(1)._2 > myItem._2 && players(1)._1 != myItem._1) "UP" else "DOWN"
       else if (movetype == "MOVE") {
-        val graph = new Graph(49)
-        for (i <- 0 until 6) {
-          for (j <- 0 until 6) {
-            if (connected(toNumber((i, j)), toNumber((i, j + 1)), inputs)) graph.addEdge(toNumber((i, j)), toNumber((i, j + 1)))
-            if (connected(toNumber((i, j)), toNumber((i + 1, j)), inputs)) graph.addEdge(toNumber((i, j)), toNumber((i + 1, j)))
-          }
-        }
-        val (edges, dists) = graph.bfs(toNumber(players(1)._1, players(1)._2))
+//        inputs.flatten.foreach(Console.err.println)
+        val edges = createGraph(inputs).dfs(players(1))
 
-//        Console.err.println(s"edges: ${edges(toNumber((myItem._1, myItem._2)))} to number: ${toNumber((myItem._1, myItem._2))}")
-        if (edges(toNumber((myItem._1, myItem._2))) == Int.MaxValue) {
-          pb(closest((myItem._1, myItem._2), pb.keys.toList))
+//      if (toNumber((myItem._1, myItem._2)) < 0) {
+//        Console.err.println(s"edges: $myItem to number: ${toNumber((myItem._1, myItem._2))}")
+//      }
+        if (edges((myItem._1, myItem._2)) == Int.MaxValue) {
+//          pb(closest((myItem._1, myItem._2), pb.keys.toList))
+          val vert = (for (i <- edges.indices
+                if edges(i) != Int.MaxValue) yield Array(i, edges(i))).flatten.distinct.filter(_ != toNumber(players(1))).map(toMatrix).toList
+          val cl = closest((myItem._1, myItem._2), vert)
+//          Console.err.println(s"CLOSEST: $cl")
+//          Console.err.println(s"MY ITEM: $myItem")
+//          Console.err.println(s"players(1): ${players(1)}")
+//          edges/*.filter(_ != Int.MaxValue).map(toMatrix).toList*/.foreach(Console.err.println)
+          path(players(1), cl, edges)
         } else {
-          path(toNumber(players(1)), toNumber((myItem._1, myItem._2)), edges)
+          path(players(1), (myItem._1, myItem._2), edges)
         }
       } else if (movetype == "PASS") ""
 

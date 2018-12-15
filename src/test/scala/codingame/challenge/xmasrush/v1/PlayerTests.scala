@@ -1,21 +1,31 @@
 package codingame.challenge.xmasrush
 
-import codingames.challenge.xmasrush.v1.Player.toNumber
-import codingames.challenge.xmasrush.v1.Player.connected
+import codingames.challenge.xmasrush.v1.Player.{connected, toMatrix, toNumber}
 import codingames.challenge.xmasrush.v1.{Graph, Player}
 import org.scalatest.FlatSpec
 
 class PlayerTests extends FlatSpec {
-    val items = List((3,2),(0,6),(0,4),(1,2),(5,5))
-    val inputs = IndexedSeq(
-      Array("0110", "0101", "1011", "1010", "0110", "1010", "1101"),
-      Array("0110", "1101", "1011", "0110", "1010", "1011", "1101"),
-      Array("1111", "0111", "1010", "0111", "0011", "1001", "1101"),
-      Array("1001", "1001", "1010", "1010", "1010", "0110", "0110"),
-      Array("0111", "0110", "1100", "1101", "1010", "1101", "1111"),
-      Array("0111", "1110", "1010", "1001", "1110", "0111", "1001"),
-      Array("0111", "1010", "1001", "1010", "1110", "0101", "1001")
-    )
+  val items = List((3, 2), (0, 6), (0, 4), (1, 2), (5, 5))
+  val inputs_ = IndexedSeq(
+    Array("0110", "0101", "1011", "1010", "0110", "1010", "1101"),
+    Array("0110", "1101", "1011", "0110", "1010", "1011", "1101"),
+    Array("1111", "0111", "1010", "0111", "0011", "1001", "1101"),
+    Array("1001", "1001", "1010", "1010", "1010", "0110", "0110"),
+    Array("0111", "0110", "1100", "1101", "1010", "1101", "1111"),
+    Array("0111", "1110", "1010", "1001", "1110", "0111", "1001"),
+    Array("0111", "1010", "1001", "1010", "1110", "0101", "1001")
+  )
+
+  val inputs = IndexedSeq(
+  Array("0110", "0110", "1111", "1101", "0011", "1001", "1101"),
+  Array("1011", "1010", "1011", "0111", "0110", "0101", "1101"),
+  Array("0011", "0101", "0111", "1010", "0111", "0110", "0101"),
+  Array("0110", "1101", "0101", "0101", "0101", "0111", "1001"),
+  Array("1001", "0101", "1001", "1101", "1010", "1101", "0101"),
+  Array("0111", "0101", "1001", "1101", "1110", "1010", "1110"),
+  Array("0111", "0101", "0111", "1011", "0111", "1111", "1001")
+//  Array("1001", "0111", "0110", "1100", "0111", "1111", "1001")
+  )
 
   "A Player" should "return closest point" in {
     val playerPoint = (5, 1)
@@ -34,19 +44,19 @@ class PlayerTests extends FlatSpec {
     val number = Player.toNumber((2,3))
     println(s"(2,3) -> number=$number\t9 point = $point")
     assert(point === (1, 2))
-    assert(number === 23)
+    assert(number === 17)
   }
 
   "A Player" should "check if two points are connected" in {
     val p1 = (6,4)
     val p2 = (6,3)
-    val result = Player.connected(Player.toNumber(p1), Player.toNumber(p2), inputs)
+    val result = Player.connected(p1, p2, inputs)
     println(s"$p1 and $p2 connection result is $result")
     assert(result)
 
     val p3 = (3,5)
     val p4 = (4,5)
-    val result2 = Player.connected(Player.toNumber(p3), Player.toNumber(p4), inputs)
+    val result2 = Player.connected(p3, p4, inputs)
     println(s"$p3 and $p4 connection result is $result2")
     assert(!result2)
   }
@@ -74,20 +84,33 @@ class PlayerTests extends FlatSpec {
   }
 
   "A Player" should "find path in graph" in {
-    val graph = new Graph(49)
-    for (i <- 0 until 6) {
-      for (j <- 0 until 6) {
-        if (connected(toNumber((i, j)), toNumber((i, j + 1)), inputs)) graph.addEdge(toNumber((i, j)), toNumber((i, j + 1)))
-        if (connected(toNumber((i, j)), toNumber((i + 1, j)), inputs)) graph.addEdge(toNumber((i, j)), toNumber((i + 1, j)))
-      }
-    }
-    val (edges, dists) = graph.bfs(toNumber(0, 0))
-    val reachableItems = items.filter(item => edges(toNumber(item)) != Int.MaxValue)
-    val path = Player.path(toNumber(0, 0), toNumber(reachableItems.head), edges)
+    val graph = Player.createGraph(inputs)
+    val (edges, dists) = graph.bfs((0, 0))
+    val reachableItems = items.filter(item => edges(item) != Int.MaxValue)
+    val path = Player.path((0, 0), reachableItems.head, edges)
 
-    println(s"edges(3,2): ${edges(toNumber(3,2))}")
+    println(s"edges(3,2): ${edges((3,2))}")
     println(s"Path (0,0)->(3,2): $path")
-    assert(edges(toNumber(3,2)) != Int.MaxValue)
+    assert(edges((3,2)) != Int.MaxValue)
     assert(path == "RIGHT RIGHT DOWN DOWN DOWN DOWN RIGHT UP UP")
+  }
+
+  "A Player" should "find closest point in path" in {
+    val player = (2,6)
+    val myItem = (2,0)
+
+    val graph = Player.createGraph(inputs)
+
+    val edges = graph.dfs(player)
+    val vert = (for (i <- edges.indices
+                     if edges(i) != Int.MaxValue) yield Array(i, edges(i))).flatten.distinct.filter(_ != toNumber(player)).map(toMatrix).toList
+
+    val cl = Player.closest(myItem, vert)
+    println(s"closest: $cl")
+    println(s"vert: $vert")
+    val path = Player.path(player, cl, edges)
+    println(s"path: $path")
+    assert(cl == (4,2))
+    assert(path == "RIGHT RIGHT DOWN DOWN DOWN DOWN RIGHT UP UP RIGHT")
   }
 }
