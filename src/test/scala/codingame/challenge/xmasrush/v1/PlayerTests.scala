@@ -6,17 +6,26 @@ import org.scalatest.FlatSpec
 
 class PlayerTests extends FlatSpec {
   val items = List((3, 2), (0, 6), (0, 4), (1, 2), (5, 5))
-  val inputs_ = IndexedSeq(
+  def print(inputs: IndexedSeq[Array[String]]) = {
+
+    inputs.foreach(input => {
+      Console.err.println
+      input.foreach(tile => Console.err.print(" " + tile))
+    })
+    Console.err.println
+  }
+
+  val inputs = IndexedSeq(
     Array("0110", "0101", "1011", "1010", "0110", "1010", "1101"),
     Array("0110", "1101", "1011", "0110", "1010", "1011", "1101"),
     Array("1111", "0111", "1010", "0111", "0011", "1001", "1101"),
     Array("1001", "1001", "1010", "1010", "1010", "0110", "0110"),
     Array("0111", "0110", "1100", "1101", "1010", "1101", "1111"),
-    Array("0111", "1110", "1010", "1001", "1110", "0111", "1001"),
+    Array("0111", "1110", "1010", "1011", "1110", "0111", "1001"),    // FIXME (3)
     Array("0111", "1010", "1001", "1010", "1110", "0101", "1001")
   )
 
-  val inputs = IndexedSeq(
+  val inputs_ = IndexedSeq(
   Array("0110", "0110", "1111", "1101", "0011", "1001", "1101"),
   Array("1011", "1010", "1011", "0111", "0110", "0101", "1101"),
   Array("0011", "0101", "0111", "1010", "0111", "0110", "0101"),
@@ -112,5 +121,33 @@ class PlayerTests extends FlatSpec {
     println(s"path: $path")
     assert(cl == (4,2))
     assert(path == "RIGHT RIGHT DOWN DOWN DOWN DOWN RIGHT UP UP RIGHT")
+  }
+
+  "A Player" should "collect all reachable items" in {
+    val player = (0,0)
+    val myItem1 = toNumber((0,1))
+    val myItem2 = toNumber((2,3))
+    val myItem3 = toNumber((4,2))
+    val reachableItems = List(myItem1, myItem2, myItem3)
+    val graph = Player.createGraph(inputs)
+    val edges = graph.dfs(player)
+    val path = Player.collectAll(player, reachableItems, graph, edges)
+    val limitedPath = path.split("\\s").take(10).reduce((a1,a2) => a1 + " " + a2)
+    val extraLimitedPath = path.split("\\s").take(20).reduce((a1,a2) => a1 + " " + a2)
+    println(s"pp: $path")
+    println(s"lp: $limitedPath")
+    println(s"ep: $extraLimitedPath")
+  }
+
+  "A Player" should "find best push" in {
+    val player = (6,3)
+    val myItem = (3,5)
+    val myTile = "0101"
+    print(inputs)
+//    val push = Player.findBestPush(inputs, List(myItem), player, myTile)
+//    println(s"best push: $push")
+//    Console.err.println
+//    print(push)
+//    assert(push == ("RIGHT",5))
   }
 }

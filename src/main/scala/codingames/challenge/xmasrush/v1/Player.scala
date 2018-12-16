@@ -91,14 +91,6 @@ object Player extends App {
   def euclidean(a: (Int, Int), b: (Int, Int)) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
   def possibleDirections(plSquare: (Int, Int), player: String, neighbours: Array[String]) = {
     val Array(pUp, pRight, pDown, pLeft) = player split ""
-//    Console.err.println("Player: " + pUp + " " + pRight + " " + pDown+ " " + pLeft)
-//    Console.err.println("Up: " + neighbours(0))
-//    Console.err.println("Right: " + neighbours(1))
-//    Console.err.println("Down: " + neighbours(2))
-//    Console.err.println("Left: " + neighbours(3))
-//    Console.err.println(s"plSquare: $plSquare")
-//    neighbours.foreach(a => Console.err.print(a + ":: "))
-//    Console.err.println()
     val upperDown = if (neighbours.head == null) "0" else neighbours.head.split("")(2)
     val rightLeft = if (neighbours(1) == null) "0" else neighbours(1).split("")(3)
     val downUp = if (neighbours(2) == null) "0" else neighbours(2).split("")(0)
@@ -111,7 +103,7 @@ object Player extends App {
       (plSquare._1 + 1, plSquare._2) -> (if (pRight == "1" && pRight == rightLeft) "RIGHT" else null)
     ).filter(_._2 != null)
   }
-  /*implicit */def toMatrix(number: Int): (Int, Int) = (number / 7, number % 7)
+  def toMatrix(number: Int): (Int, Int) = (number / 7, number % 7)
   implicit def toNumber(point: (Int, Int)): Int = point._1 * 7 + point._2 % 7
   // p1 is directly <result: {UP, DOWN, LEFT, RIGHT, NOTHING}> to p2
   def relation(p1: (Int, Int), p2: (Int, Int)) = if (p1._1 == p2._1 && p1._2 - 1 == p2._2) "DOWN" else
@@ -133,13 +125,75 @@ object Player extends App {
   def path(from: Int, to: Int, edges: Array[Int]): String = {
     val mfrom = toMatrix(from)
     val mTo = toMatrix(to)
-//    Console.err.println(s"from=$from\tto=$to\tedges size=${edges.size}")
-//    for (i <- 0 until 49) {
-//      Console.err.print(i + ":" + edges(i)+"\t")
-//    }
     val next = edges(to)
     if (next == from) relation(mTo, toMatrix(from)) else
       path(from, next, edges) + " " + relation(mTo, toMatrix(next))
+  }
+  def collectAll(from: Int, reachableItems: List[Int], graph: Graph, edges: Array[Int]): String = {
+    if (reachableItems.tail.isEmpty) path(from, reachableItems.head, edges) else {
+      path(from, reachableItems.head, edges) + " " + collectAll(reachableItems.head, reachableItems.tail, graph, graph.dfs(reachableItems.head))
+    }
+  }
+  def findBestPush(inputs: IndexedSeq[Array[String]], myItems: List[(Int, Int)], from: (Int, Int), playertile: String, myItem: (Int, Int)): (String, String) = {
+    // RIGHT
+    for (hor <- 0 until 7) {
+      var _inputs = for(inner <- inputs) yield {for (elem <- inner) yield elem}
+      for(i <- (1 to 6).reverse) _inputs(hor)(i) = inputs(hor)(i-1)
+      _inputs(hor)(0) = playertile
+      val _player = if (from._2 == hor) if (from._1 < 6) (from._1 + 1, hor) else (0, hor) else from
+      val movedItems = myItems.map(myItem => if (myItem._2 == hor) if (myItem._1 < 6) (myItem._1 + 1, hor) else (-2, -2) else myItem).filter(myItem => myItem._1 >= 0)
+      val edges = createGraph(_inputs).dfs(_player)
+      val reachableItems = movedItems.filter(myItem => edges((myItem._1, myItem._2)) != Int.MaxValue)
+      if (reachableItems.nonEmpty) {
+        return ("RIGHT", hor + " ")
+      }
+    }
+    // LEFT
+    for (hor <- 0 until 7) {
+      var _inputs = for(inner <- inputs) yield {for (elem <- inner) yield elem}
+      for(i <- 0 until 6) _inputs(hor)(i) = inputs(hor)(i+1)
+      _inputs(hor)(6) = playertile
+      val _player = if (from._2 == hor) if (from._1 > 0) (from._1 - 1, hor) else (6, hor) else from
+      val movedItems = myItems.map(myItem => if (myItem._2 == hor) if (myItem._1 > 0) (myItem._1 - 1, hor) else (-2, -2) else myItem).filter(myItem => myItem._1 >= 0)
+      val edges = createGraph(_inputs).dfs(_player)
+      val reachableItems = movedItems.filter(myItem => edges((myItem._1, myItem._2)) != Int.MaxValue)
+      if (reachableItems.nonEmpty) {
+        return ("LEFT", hor + " ")
+      }
+    }
+    // UP
+    for (ver <- 0 until 7) {
+      var _inputs = for(inner <- inputs) yield {for (elem <- inner) yield elem}
+      for(i <- 0 until 6) _inputs(i)(ver) = inputs(i+1)(ver)
+      _inputs(6)(ver) = playertile
+      val _player = if (from._1 == ver) if (from._2 > 0) (ver, from._2 - 1) else (ver, 6) else from
+      val movedItems = myItems.map(myItem => if (myItem._1 == ver) if (myItem._2 > 0) (ver, myItem._2 - 1) else (-2, -2) else myItem).filter(myItem => myItem._1 >= 0)
+      val edges = createGraph(_inputs).dfs(_player)
+      val reachableItems = movedItems.filter(myItem => edges((myItem._1, myItem._2)) != Int.MaxValue)
+      if (reachableItems.nonEmpty) {
+        return ("UP", ver + " ")
+      }
+    }
+    // DOWN
+    for (ver <- 0 until 7) {
+      var _inputs = for(inner <- inputs) yield {for (elem <- inner) yield elem}
+      for(i <- (1 to 6).reverse) _inputs(ver)(i) = inputs(i-1)(ver)
+      _inputs(6)(ver) = playertile
+      val _player = if (from._1 == ver) if (from._2 < 6) (ver, from._2 + 1) else (ver, 0) else from
+      val movedItems = myItems.map(myItem => if (myItem._1 == ver) if (myItem._2 < 6) (ver, myItem._2 + 1) else (-2, -2) else myItem).filter(myItem => myItem._1 >= 0)
+      val edges = createGraph(_inputs).dfs(_player)
+      val reachableItems = movedItems.filter(myItem => edges((myItem._1, myItem._2)) != Int.MaxValue)
+      if (reachableItems.nonEmpty) {
+        return ("DOWN", ver + " ")
+      }
+    }
+
+    val direction = if (from._1 > myItem._1 && from._2 != myItem._2) "LEFT" else
+      if (from._1 < myItem._1 && from._2 != myItem._2) "RIGHT" else
+      if (from._2 < myItem._2 && from._1 != myItem._1) "DOWN" else
+      if (from._2 > myItem._2 && from._1 != myItem._1) "UP" else "DOWN"
+    val rowid = if (direction == "LEFT" || direction == "RIGHT") from._2 else from._1
+    (direction, rowid + " ")
   }
 
   var i = 0
@@ -147,22 +201,9 @@ object Player extends App {
   // game loop
   while (true) {
     val turntype = readInt
-//    Console.err.println("turntype: " + turntype)
-//    Console.err.println("++++++++++++++++++++++++++++")
-//    var tiles: Array[Array[Int]] =
     val inputs = for (i <- 0 until 7) yield readLine split " "
-//    connected(1,2,inputs)
-//      for (i <- 0 until 7) {
-//      var inputs = readLine split " "
-//      inputs.flatten.foreach(Console.err.println)
-//      for (j <- 0 until 7) {
-//
-//      }
-//                  Console.err.println("------------------------")
-//    }
-//    Console.err.println("++++++++++++++++++++++++++++")
-
     var players: List[(Int, Int)] = Nil
+    var myTile: String = ""
 
     for (i <- 0 until 2) {
       // numplayercards: the total number of quests for a player (hidden and revealed)
@@ -170,14 +211,9 @@ object Player extends App {
       val numplayercards = _numplayercards.toInt
       val playerx = _playerx.toInt
       val playery = _playery.toInt
+      val myTile = if (i == 0) playertile
       players = (playerx, playery) :: players
-//      Console.err.println("numplayercards: " + numplayercards)
-//      Console.err.println("playerx: " + playerx)
-//      Console.err.println("playery: " + playery)
-//      Console.err.println("playertile: " + playertile)
-//      Console.err.println("------------------------")
     }
-//    Console.err.println("++++++++++++++++++++++++++++")
     val numitems = readInt // the total number of items available on board and on player tiles
 
     var items: List[(Int, Int, String)] = Nil
@@ -188,74 +224,12 @@ object Player extends App {
       val itemy = _itemy.toInt
       val itemplayerid = _itemplayerid.toInt
       if (itemplayerid == 0) items = ((itemx, itemy, itemname) :: items).filter(item => item._1 >=0 && item._2 >= 0)
-//      Console.err.println("------------------------")
-//      Console.err.println("itemname: " + itemname)
-//      Console.err.println("itemx: " + itemx)
-//      Console.err.println("itemy: " + itemy)
-//      Console.err.println("itemplayerid: " + itemplayerid)
-//      Console.err.println("------------------------")
     }
-
-//    val myItem = closest((players(1)._1, players(1)._2), items)
 
     val numquests = readInt // the total number of revealed quests for both players
     val quests = (for (i <- 0 until numquests) yield readLine split " ").filter(_(1).toInt == 0)
-//    Console.err.println("--------------QUESTS--------------------")
-//    for (i <- quests.indices) {
-//      Console.err.print(s"quiest[$i]: ")
-//      quests(i).foreach(q => Console.err.print(q + " "))
-//      Console.err.println
-//    }
-//    quests.flatten.foreach(Console.err.println)
-//    Console.err.println("--------------=====---------------------")
-
-
-//    for (i <- 0 until numquests) {
-//      val Array(questitemname, _questplayerid) = readLine split " "
-//      val questplayerid = _questplayerid.toInt
-//      Console.err.println(s"questitemname: $questitemname\tquestplayerid: $questplayerid")
-//      Console.err.println("------------------------")
-//    }
-//    val myItem = (1,2)
     val myItems = items.filter(item => quests.map(_(0)).contains(item._3)).map(item => (item._1, item._2))
     val myItem = if (myItems.isEmpty) closest(players(1), items.map(item => (item._1, item._2))) else myItems.head
-
-//    for (myItem <- myItems) {
-//      Console.err.print(s"myItem: $myItem")
-//      Console.err.println
-//    }
-//    ------------------------
-//    itemname: SCROLL
-//    itemx: 2
-//    itemy: 2
-//    itemplayerid: 1
-//    ------------------------
-//    --------------QUESTS--------------------
-//    quiest[0]: SHIELD 0
-//    quiest[1]: FISH 0
-//    quiest[2]: BOOK 0
-//    quiest[3]: SHIELD 1
-//    quiest[4]: FISH 1
-//    quiest[5]: BOOK 1
-//    --------------=====---------------------
-//
-//    Console.err.println(s"!!myItem2: $myItem")
-    // Write an action using println
-    // To debug: Console.err.println("Debug messages...")
-
-//    inputs.foreach(a => {
-//      Console.err.println()
-//      a.foreach(b => Console.err.print(" " + b))
-//    }
-//    )
-//      Console.err.println()
-//      Console.err.println()
-//    players.foreach(Console.err.println)
-//      Console.err.println()
-//      Console.err.println()
-//    Console.err.println(myItem._1, myItem._2)
-//      Console.err.println()
-//      Console.err.println()
 
     val pb = possibleDirections((players(1)._1, players(1)._2), inputs(players(1)._2)(players(1)._1),
       Array(
@@ -265,51 +239,29 @@ object Player extends App {
         if (players(1)._1 - 1 >= 0) inputs(players(1)._2)(players(1)._1 - 1) else null
       )
     )
-//    Console.err.println()
-//    Console.err.println("Closest:" + closest(myItem, pb.keys.toList))
-
 
     val movetype = if (i % 2 == 0) "PUSH" else if (pb.isEmpty) "PASS" else "MOVE"
 
-    var direction = if (movetype == "PUSH")
-        if (players(1)._1 > myItem._1 && players(1)._2 != myItem._2) "LEFT" else
-        if (players(1)._1 < myItem._1 && players(1)._2 != myItem._2) "RIGHT" else
-        if (players(1)._2 < myItem._2 && players(1)._1 != myItem._1) "DOWN" else
-        if (players(1)._2 > myItem._2 && players(1)._1 != myItem._1) "UP" else "DOWN"
-      else if (movetype == "MOVE") {
-//        inputs.flatten.foreach(Console.err.println)
-        val edges = createGraph(inputs).dfs(players(1))
-
-//      if (toNumber((myItem._1, myItem._2)) < 0) {
-//        Console.err.println(s"edges: $myItem to number: ${toNumber((myItem._1, myItem._2))}")
-//      }
+    var (direction, rowid) = if (movetype == "PUSH") {
+        findBestPush(inputs, myItems, players(1), myTile, myItem)
+    } else if (movetype == "MOVE") {
+        val graph = createGraph(inputs)
+        val edges = graph.dfs(players(1))
         val reachableItems = myItems.filter(myItem => edges((myItem._1, myItem._2)) != Int.MaxValue)
         if (reachableItems.nonEmpty) {
-          path(players(1), reachableItems.head, edges)
+          (collectAll(players(1), reachableItems.map(toNumber), graph, edges).split("\\s").take(20).reduce((a1,a2) => a1 + " " + a2), "")
         }  else {
           val vert = (for (i <- edges.indices
                            if edges(i) != Int.MaxValue) yield Array(i, edges(i))).flatten.distinct.filter(_ != toNumber(players(1))).map(toMatrix).toList
-          val cl = closest((myItem._1, myItem._2), vert)
-          //          Console.err.println(s"CLOSEST: $cl")
-          //          Console.err.println(s"MY ITEM: $myItem")
-          //          Console.err.println(s"players(1): ${players(1)}")
-          //          edges/*.filter(_ != Int.MaxValue).map(toMatrix).toList*/.foreach(Console.err.println)
-          path(players(1), cl, edges)
+
+          (path(players(1), closest((myItem._1, myItem._2), vert), edges), "")
         }
-      } else if (movetype == "PASS") ""
+      } else if (movetype == "PASS") ("", "")
 
-//    Console.err.println("direction: " + direction + " turntype=" + turntype)
-//    Console.err.println("movetype: " + movetype)
-//    Console.err.println("I playesr: " + players(1))
-    val rowid = if (movetype == "PUSH")
-        (if (direction == "LEFT" || direction == "RIGHT") players(1)._2 else players(1)._1) + " "
-//      (if (players(1)._1 != myItem._1) players(1)._1 else players(1)._2) + " "
+//    val rowid = if (movetype == "PUSH")
+//        (if (direction == "LEFT" || direction == "RIGHT") players(1)._2 else players(1)._1) + " "
     else ""
-
-
-//    Console.err.println(s"$movetype $rowid $direction")
       println(s"$movetype $rowid$direction".trim) // PUSH <id> <direction> | MOVE <direction> | PASS
-
     i += 1
   }
 }
