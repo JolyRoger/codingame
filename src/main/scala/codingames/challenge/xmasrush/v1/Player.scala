@@ -188,6 +188,7 @@ object Player extends App {
       val itemy = _itemy.toInt
       val itemplayerid = _itemplayerid.toInt
       if (itemplayerid == 0) items = ((itemx, itemy, itemname) :: items).filter(item => item._1 >=0 && item._2 >= 0)
+//      Console.err.println("------------------------")
 //      Console.err.println("itemname: " + itemname)
 //      Console.err.println("itemx: " + itemx)
 //      Console.err.println("itemy: " + itemy)
@@ -198,8 +199,16 @@ object Player extends App {
 //    val myItem = closest((players(1)._1, players(1)._2), items)
 
     val numquests = readInt // the total number of revealed quests for both players
-    val quests = for (i <- 0 until numquests) yield readLine split " "
+    val quests = (for (i <- 0 until numquests) yield readLine split " ").filter(_(1).toInt == 0)
+//    Console.err.println("--------------QUESTS--------------------")
+//    for (i <- quests.indices) {
+//      Console.err.print(s"quiest[$i]: ")
+//      quests(i).foreach(q => Console.err.print(q + " "))
+//      Console.err.println
+//    }
 //    quests.flatten.foreach(Console.err.println)
+//    Console.err.println("--------------=====---------------------")
+
 
 //    for (i <- 0 until numquests) {
 //      val Array(questitemname, _questplayerid) = readLine split " "
@@ -208,10 +217,29 @@ object Player extends App {
 //      Console.err.println("------------------------")
 //    }
 //    val myItem = (1,2)
-    val myItems = items.filter(_._3 == quests(0)(0))
-    val myItem = if (myItems.isEmpty) closest((players(1)._1, players(1)._2), items.map(item => (item._1, item._2)))
-                                      else (myItems.head._1, myItems.head._2)
-//    Console.err.println(s"myItem2: $myItem")
+    val myItems = items.filter(item => quests.map(_(0)).contains(item._3)).map(item => (item._1, item._2))
+    val myItem = if (myItems.isEmpty) closest(players(1), items.map(item => (item._1, item._2))) else myItems.head
+
+//    for (myItem <- myItems) {
+//      Console.err.print(s"myItem: $myItem")
+//      Console.err.println
+//    }
+//    ------------------------
+//    itemname: SCROLL
+//    itemx: 2
+//    itemy: 2
+//    itemplayerid: 1
+//    ------------------------
+//    --------------QUESTS--------------------
+//    quiest[0]: SHIELD 0
+//    quiest[1]: FISH 0
+//    quiest[2]: BOOK 0
+//    quiest[3]: SHIELD 1
+//    quiest[4]: FISH 1
+//    quiest[5]: BOOK 1
+//    --------------=====---------------------
+//
+//    Console.err.println(s"!!myItem2: $myItem")
     // Write an action using println
     // To debug: Console.err.println("Debug messages...")
 
@@ -255,18 +283,18 @@ object Player extends App {
 //      if (toNumber((myItem._1, myItem._2)) < 0) {
 //        Console.err.println(s"edges: $myItem to number: ${toNumber((myItem._1, myItem._2))}")
 //      }
-        if (edges((myItem._1, myItem._2)) == Int.MaxValue) {
-//          pb(closest((myItem._1, myItem._2), pb.keys.toList))
+        val reachableItems = myItems.filter(myItem => edges((myItem._1, myItem._2)) != Int.MaxValue)
+        if (reachableItems.nonEmpty) {
+          path(players(1), reachableItems.head, edges)
+        }  else {
           val vert = (for (i <- edges.indices
-                if edges(i) != Int.MaxValue) yield Array(i, edges(i))).flatten.distinct.filter(_ != toNumber(players(1))).map(toMatrix).toList
+                           if edges(i) != Int.MaxValue) yield Array(i, edges(i))).flatten.distinct.filter(_ != toNumber(players(1))).map(toMatrix).toList
           val cl = closest((myItem._1, myItem._2), vert)
-//          Console.err.println(s"CLOSEST: $cl")
-//          Console.err.println(s"MY ITEM: $myItem")
-//          Console.err.println(s"players(1): ${players(1)}")
-//          edges/*.filter(_ != Int.MaxValue).map(toMatrix).toList*/.foreach(Console.err.println)
+          //          Console.err.println(s"CLOSEST: $cl")
+          //          Console.err.println(s"MY ITEM: $myItem")
+          //          Console.err.println(s"players(1): ${players(1)}")
+          //          edges/*.filter(_ != Int.MaxValue).map(toMatrix).toList*/.foreach(Console.err.println)
           path(players(1), cl, edges)
-        } else {
-          path(players(1), (myItem._1, myItem._2), edges)
         }
       } else if (movetype == "PASS") ""
 
