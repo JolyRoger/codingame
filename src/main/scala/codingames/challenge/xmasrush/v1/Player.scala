@@ -1,4 +1,4 @@
-//package codingames.challenge.xmasrush.v1
+package codingames.challenge.xmasrush.v1
 
 import math._
 import scala.collection.mutable
