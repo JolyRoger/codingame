@@ -1,4 +1,4 @@
-//package codingames.medium.skynetrevolution
+package codingames.medium.skynetrevolution
 
 import scala.annotation.tailrec
 import scala.collection.mutable
