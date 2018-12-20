@@ -1,9 +1,9 @@
-package codingames.veryhard.theresistance
+//package codingames.veryhard.theresistance
 
 object Solution extends App {
 
   def MAX_SYMBOL_SIZE = 4
-  def mydict = List("HELL", "HELLO", "OWORLD", "WORLD", "TEST")
+
   def morze: Map[String, Char] = Map(
     ".-" ->   'A', "-..." -> 'B', "-.-." -> 'C', "-.." ->  'D',
     "." ->    'E', "..-." -> 'F', "--." ->  'G', "...." -> 'H',
@@ -20,24 +20,34 @@ object Solution extends App {
       }
     }).filterNot(_._1 == '\0').toList
 
-  def allPossibleStartingWords(seq: String) = {
-    def findWords(wordCandidate: String, seq: String, found: List[String]): List[String] = {
-        allPossibleStartingLetters(seq).flatMap(letter => {
+  def allPossibleStartingWords(seq: String, dict: List[String]) = {
+    def findWords(wordCandidate: String, seq: String, found: List[(String, Int)], offset: Int): List[(String, Int)] = {
+      if (seq.isEmpty) found else
+      allPossibleStartingLetters(seq).flatMap(letter => {
         val newWordCandidate = wordCandidate + letter._1
-        if (!mydict.exists(_ startsWith newWordCandidate)) found else
-        if (mydict.contains(newWordCandidate)) findWords(newWordCandidate, seq.drop(letter._2), newWordCandidate :: found)
-          else findWords(newWordCandidate, seq.drop(letter._2), found)
+        if (!dict.exists(_ startsWith newWordCandidate)) found else
+        if (dict.contains(newWordCandidate)) findWords(newWordCandidate, seq.drop(letter._2), (newWordCandidate, offset + letter._2) :: found, offset + letter._2)
+          else findWords(newWordCandidate, seq.drop(letter._2), found, offset + letter._2)
       }).distinct
     }
-    findWords("", seq, List.empty[String])
+    findWords("", seq, List.empty[(String, Int)], 0)
   }
 
-  val l = readLine
-  val n = readInt
-  Console.err.println(s"l=$l\tn=$n")
+  def message(seq: String, dict: List[String]): List[String] = {
+    def findMessage(seq: String, found: String, offset: Int): List[String] = {
+      if (seq.isEmpty) List(found) else
+      allPossibleStartingWords(seq, dict).flatMap(word => findMessage(seq.drop(word._2), found + " " + word._1, offset + word._1.length)
+      )
+    }
+    findMessage(seq, "", 0)
+  }
 
-  val dict = for (i <- 0 until n) yield readLine
+  val seq = readLine
+  val dictSize = readInt
+  Console.err.println(s"seq: $seq\tdictSize: $dictSize")
+
+  val dict = (for (i <- 0 until dictSize) yield readLine).toList
   dict.foreach(word => Console.err.print(s"$word "))
 
-  println("1")
+  println(message(seq, dict).size)
 }
