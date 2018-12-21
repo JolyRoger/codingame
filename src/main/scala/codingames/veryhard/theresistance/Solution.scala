@@ -1,8 +1,8 @@
-//package codingames.veryhard.theresistance
+package codingames.veryhard.theresistance
 
 object Solution extends App {
 
-  def MAX_SYMBOL_SIZE = 4
+  val wordMap: scala.collection.mutable.Map[String, Int] = scala.collection.mutable.Map.empty[String, Int]
 
   def morze: Map[String, Char] = Map(
     ".-" ->   'A', "-..." -> 'B', "-.-." -> 'C', "-.." ->  'D',
@@ -13,41 +13,33 @@ object Solution extends App {
     "..-" ->  'U', "...-" -> 'V', ".--" ->  'W', "-..-" -> 'X',
     "-.--" -> 'Y', "--.." -> 'Z')
 
-  def allPossibleStartingLetters(seq: String) = seq.take(MAX_SYMBOL_SIZE).indices.map(index => {
-      morze.get(seq.take(index + 1).toString) match {
-        case Some(s) => (s, index + 1)
-        case None => ('\0', index + 1)
-      }
-    }).filterNot(_._1 == '\0').toList
+  def morze2 = morze.map(_.swap)
 
-  def allPossibleStartingWords(seq: String, dict: List[String]) = {
-    def findWords(wordCandidate: String, seq: String, found: List[(String, Int)], offset: Int): List[(String, Int)] = {
-      if (seq.isEmpty) found else
-      allPossibleStartingLetters(seq).flatMap(letter => {
-        val newWordCandidate = wordCandidate + letter._1
-        if (!dict.exists(_ startsWith newWordCandidate)) found else
-        if (dict.contains(newWordCandidate)) findWords(newWordCandidate, seq.drop(letter._2), (newWordCandidate, offset + letter._2) :: found, offset + letter._2)
-          else findWords(newWordCandidate, seq.drop(letter._2), found, offset + letter._2)
-      }).distinct
+  def toMorze(word: String) = word.foldLeft("")(_ + morze2(_))
+
+  def wordPair(word: String) = {
+    val mword = toMorze(word)
+    if (wordMap.contains(mword)) {
+      wordMap.put(mword, wordMap(mword) + 1)
+    } else {
+      wordMap.put(mword, 1)
     }
-    findWords("", seq, List.empty[(String, Int)], 0)
   }
 
-  def message(seq: String, dict: List[String]): List[String] = {
-    def findMessage(seq: String, found: String, offset: Int): List[String] = {
-      if (seq.isEmpty) List(found) else
-      allPossibleStartingWords(seq, dict).flatMap(word => findMessage(seq.drop(word._2), found + " " + word._1, offset + word._1.length)
-      )
+  def find(seq: Stream[Char]): Int = {
+    if (seq.isEmpty) 1 else {
+      val res = for {
+        indexedSeq <- seq.zipWithIndex
+        candidate = seq.take(indexedSeq._2 + 1).foldLeft("")(_ + _)
+        if wordMap.contains(candidate)
+      } yield wordMap(candidate) * find(seq.drop(indexedSeq._2 + 1))
+      res.sum
     }
-    findMessage(seq, "", 0)
   }
 
-  val seq = readLine
+  val seq = readLine.toStream
   val dictSize = readInt
-  Console.err.println(s"seq: $seq\tdictSize: $dictSize")
+  for (i <- 0 until dictSize) wordPair(readLine)
 
-  val dict = (for (i <- 0 until dictSize) yield readLine).toList
-  dict.foreach(word => Console.err.print(s"$word "))
-
-  println(message(seq, dict).size)
+  println(find(seq))
 }
