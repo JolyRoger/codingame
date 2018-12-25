@@ -13,11 +13,11 @@ class SolutionTests extends FlatSpec {
                   "--.-------..") // 5
   val dict = Array(List("HELL", "HELLO", "OWORLD", "WORLD", "TEST"),
                    List("A", "B", "C", "HELLO", "K", "WORLD"),
-                   List("BAC", "DUC", "AQUA", "BANN", "K", "BACK", "BANNK"),
+                   List("BAC", "DUC", "AQUA", "BANN", "K", "BACK", "BANNK", "TA", "NT"),
                    List("E"),
                    List("I", "E", "EE"),
                    List("GOD", "GOOD", "MORNING", "G", "HELLO"))
-  val res = Array(2, 1, 5, 1, 3, 1)
+  val res = Array(2, 1, 11, 1, 3, 1)
 
   val wordMap: scala.collection.mutable.Map[String, Int] = scala.collection.mutable.Map.empty[String, Int]
   // key -> start position, value -> List(<offset>, <multiplier>, <mword>)
@@ -53,9 +53,15 @@ class SolutionTests extends FlatSpec {
       posStartMap.clear
       for (i <- dict(index).indices) wordPair(dict(index)(i), index)
       val actualRes = find(seq(index).toStream, 0)
-      Console.err.println(s"\nseq: ${seq(index)}")
+      Console.err.println(s"\nseq: ${seq(index)}\t: ${seq(index).length}")
       Console.err.println(s"dict: ${dict(index)}")
+      Console.err.println(s"map: $posStartMap")
       Console.err.println(s"res: $actualRes")
+//      if (index == 4) {
+        val g = new DirectedGraph(posStartMap.toMap)
+        val pathsValue = g.allPaths(0, seq(index).length)
+        Console.err.println(s"pathvalue: $pathsValue")
+//      }
       assert(actualRes == res(index))
     })
   }
