@@ -6,7 +6,7 @@ object Solution extends App {
 
   val posStartMap = scala.collection.mutable.Map.empty[Int, Map[Int, Int]]
 
-  def morze: Map[Char, String] = Map(
+  val morze: Map[Char, String] = Map(
     'A' -> ".-",   'B' -> "-...", 'C' -> "-.-.", 'D' ->  "-..",
     'E' -> "." ,   'F' -> "..-.", 'G' -> "--.",  'H' -> "....",
     'I' -> "..",   'J' -> ".---", 'K' -> "-.-",  'L' -> ".-..",
@@ -18,11 +18,13 @@ object Solution extends App {
   def toMorze(word: String) = word.foldLeft("")(_ + morze(_))
 
   def wordPair(word: String, seq: String) = {
-    val matcher = Pattern.compile(toMorze(word).replace(".", "\\.")).matcher(seq)
+    val morzeWord = toMorze(word)
+    val wordLength = morzeWord.length
+    val matcher = Pattern.compile("(?=(" + morzeWord.replace(".", "\\.") + "))").matcher(seq)
 
     while (matcher.find) {
       val start = matcher.start
-      val end = matcher.end
+      val end = start + wordLength
 
       posStartMap.get(start) match {
         case None => posStartMap.put(start, Map(end -> 1))
