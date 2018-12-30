@@ -6,18 +6,16 @@ object Solution extends App {
 
   val posStartMap = scala.collection.mutable.Map.empty[Int, Map[Int, Int]]
 
-  def morze: Map[String, Char] = Map(
-    ".-" ->   'A', "-..." -> 'B', "-.-." -> 'C', "-.." ->  'D',
-    "." ->    'E', "..-." -> 'F', "--." ->  'G', "...." -> 'H',
-    ".." ->   'I', ".---" -> 'J', "-.-" ->  'K', ".-.." -> 'L',
-    "--" ->   'M', "-." ->   'N', "---" ->  'O', ".--." -> 'P',
-    "--.-" -> 'Q', ".-." ->  'R', "..." ->  'S', "-" ->    'T',
-    "..-" ->  'U', "...-" -> 'V', ".--" ->  'W', "-..-" -> 'X',
-    "-.--" -> 'Y', "--.." -> 'Z')
+  def morze: Map[Char, String] = Map(
+    'A' -> ".-",   'B' -> "-...", 'C' -> "-.-.", 'D' ->  "-..",
+    'E' -> "." ,   'F' -> "..-.", 'G' -> "--.",  'H' -> "....",
+    'I' -> "..",   'J' -> ".---", 'K' -> "-.-",  'L' -> ".-..",
+    'M' -> "--",   'N' -> "-.",   'O' ->  "---", 'P' -> ".--.",
+    'Q' -> "--.-", 'R' -> ".-.",  'S' ->  "...", 'T' -> "-",
+    'U' -> "..-",  'V' -> "...-", 'W' ->  ".--", 'X' -> "-..-",
+    'Y' -> "-.--", 'Z' -> "--..")
 
-  def morzeReverse = morze.map(_.swap)
-
-  def toMorze(word: String) = word.foldLeft("")(_ + morzeReverse(_))
+  def toMorze(word: String) = word.foldLeft("")(_ + morze(_))
 
   def wordPair(word: String, seq: String) = {
     val matcher = Pattern.compile(toMorze(word).replace(".", "\\.")).matcher(seq)
