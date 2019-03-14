@@ -39,7 +39,26 @@ class PlayerTests extends FlatSpec {
     assert(res3 == List((9, 5)))
   }
 
+  val targetStaticMap = Map("DISH" -> List((1,1)),
+                            "WASH" -> List((2,2)))
+
+  def addToMap(oldMap: Map[String, List[(Int, Int)]], key: String, value: (Int, Int)) =
+    oldMap + (key -> (oldMap.get(key) match {
+      case Some(lst) => value :: lst
+      case None => List(value)
+    }))
+
+  "A Player" should "find closest empty table" in {
+    val point = (10,7)
+    val cet = Player.searchClosestEmptyTable(testMatrix, point)
+    Console.err.println(s"Closest empty table to $point is $cet")
+  }
+
   "A Player" should "print target map" in {
-    Console.err.println(s"${Player.stateBook}")
+    Console.err.println(s"targetStaticMap before: $targetStaticMap")
+    val newMap = addToMap(targetStaticMap, "BAR", (4,2))
+    Console.err.println(s"new map: $newMap")
+    val tdm = addToMap(targetStaticMap, "WASH", (4,2))
+    Console.err.println(s"tdm: $tdm")
   }
 }
