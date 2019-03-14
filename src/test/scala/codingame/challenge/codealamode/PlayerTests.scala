@@ -5,6 +5,20 @@ import codingames.challenge.codealamode.Player.searchSym
 import org.scalatest.FlatSpec
 
 class PlayerTests extends FlatSpec {
+  val cookBook = Map("BLUEBERRIES-CROISSANT" -> Player.croissantBlueberries,
+    "CROISSANT" -> Player.croissant,
+    "BLUEBERRIES-ICE_CREAM" -> Player.iceCreamBlueberries,
+    "CHOPPED_STRAWBERRIES-ICE_CREAM" -> Player.iceCreamChoppedStrawberries,
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES" -> Player.сhoppedStrawberriesBlueberries,
+    "BLUEBERRIES-CROISSANT-ICE_CREAM" -> Player.croissantBlueberriesIcecream,
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-ICE_CREAM" -> Player.iceCreamChoppedStrawberriesBlueberries,
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-CROISSANT" -> Player.blueberriesCroissantChoppedStrawberries,
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-CROISSANT-ICE_CREAM" -> Player.iceCreamBlueberriesCroissantChoppedStrawberries,
+    "CHOPPED_STRAWBERRIES-CROISSANT" -> Player.croissantChoppedStrawberries,
+    "CHOPPED_STRAWBERRIES-CROISSANT-ICE_CREAM" -> Player.iceCreamCroissantChoppedStrawberries,
+    "CROISSANT-ICE_CREAM" -> Player.iceCreamCroissant,
+  )
+
   val testMatrix = List(
     "#I###D#####",
     "B0.1......#",
@@ -60,5 +74,31 @@ class PlayerTests extends FlatSpec {
     Console.err.println(s"new map: $newMap")
     val tdm = addToMap(targetStaticMap, "WASH", (4,2))
     Console.err.println(s"tdm: $tdm")
+  }
+
+  "A Player" should "find another target" in {
+    val customeritems = List(Array("DISH-ICE_CREAM-BLUEBERRIES", "42"), Array("DISH-ICE_CREAM-BLUEBERRIES", "43"), Array("DISH-ICE_CREAM-BLUEBERRIES", "44"))
+    val playeritem = "DISH-ICE_CREAM"
+    val nextTarget = Player.nextTarget(playeritem, customeritems, cookBook)
+    Console.err.println(s"nextTarget: $nextTarget")
+    assert(nextTarget == List("BLUEBERRIES"))
+  }
+
+  "A Player" should "find next target" in {
+    val customeritems = List(Array("DISH-ICE_CREAM-BLUEBERRIES", "42"), Array("DISH-ICE_CREAM-BLUEBERRIES", "43"), Array("DISH-ICE_CREAM-BLUEBERRIES", "44"))
+    //    val customeritemsA = List("DISH-BLUEBERRIES-ICE_CREAM", "DISH-ICE_CREAM-BLUEBERRIES", "DISH-ICE_CREAM-BLUEBERRIES")
+    customeritems.foreach(item => Console.err.println(s"customer items: ${item.mkString("[",", ","]")}"))
+
+    val result = List(List("DISH"), List("BLUEBERRIES"), List("ICE_CREAM"), List("WINDOW"), List("BLUEBERRIES", "ICE_CREAM"))
+    val playeritem = List("NONE", "DISH-ICE_CREAM", "DISH-BLUEBERRIES", "DISH-BLUEBERRIES-ICE_CREAM", "DISH")
+
+    val nextTarget = playeritem.map(Player.nextTarget(_, customeritems, cookBook)).zipWithIndex
+    Console.err.println
+    nextTarget.foreach {
+      next => {
+        Console.err.println(s"prev state: ${playeritem(next._2)}, target: ${next._1}")
+        //        assert(next._1 == result(next._2))
+      }
+    }
   }
 }
