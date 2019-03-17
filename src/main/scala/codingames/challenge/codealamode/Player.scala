@@ -3,7 +3,8 @@
 object Player extends App {
 //  case class Recipe (ingr: List[Map[String, Int]], f: List[Map[String, Int]] => List[Map[String, Int]])
   type Point = (Int, Int)
-  type Recipe = List[Map[String, Int]]
+  type Recipe = Map[String, Map[String, String]]
+  type Target = Map[String, List[(Int, Int)]]
   var prevState = ""
   var prevPlayeritem = ""
   var myState = prevState
@@ -11,17 +12,18 @@ object Player extends App {
 
   val croissant = Map("NONE" -> "DOUGH",
     "DOUGH" -> "OVEN",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
-    "NONE-CROISSANT-IS-READY" -> "DISH",
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
     "CROISSANT-DISH" -> "WINDOW"
   )
   val choppedStrawberries = Map("NONE" -> "STRAWBERRIES",
     "STRAWBERRIES" -> "CHOPPING",
     "CHOPPED_STRAWBERRIES" -> "DISH"
   )
-  val iceCreamBlueberries = Map("NONE" -> "DISH", "DISH" -> "BLUEBERRIES", "BLUEBERRIES-DISH" -> "ICE_CREAM", "BLUEBERRIES-DISH-ICE_CREAM" -> "WINDOW")
+  val iceCreamBlueberries = Map("NONE" -> "DISH", "DISH" -> "BLUEBERRIES", "BLUEBERRIES-DISH" -> "ICE_CREAM", "DISH-ICE_CREAM" -> "BLUEBERRIES", "BLUEBERRIES-DISH-ICE_CREAM" -> "WINDOW")
   val iceCreamChoppedStrawberriesBlueberries = Map("NONE" -> "STRAWBERRIES",
     "STRAWBERRIES" -> "CHOPPING",
     "CHOPPED_STRAWBERRIES" -> "DISH",
@@ -40,132 +42,306 @@ object Player extends App {
     "CHOPPED_STRAWBERRIES" -> "DISH",
     "CHOPPED_STRAWBERRIES-DISH" -> "ICE_CREAM",
     "CHOPPED_STRAWBERRIES-DISH-ICE_CREAM" -> "WINDOW")
-  val blueberriesCroissantChoppedStrawberries = Map("NONE" -> "DOUGH",
+  val blueberriesCroissantChoppedStrawberries = Map("NONE" -> "DOUGH",  // correct
     "DOUGH" -> "OVEN",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
-    "CROISSANT-DISH" -> "TABLE-STRAWBERRIES",
-    "NONE-CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
-    "STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "CHOPPING",
-    "CHOPPED_STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
-    "CHOPPED_STRAWBERRIES-NONE-CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT-DISH" -> "TABLE@STRAWBERRIES",
+    "NONE#CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
+    "DISH-CROISSANT-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
+    "NONE#CROISSANT-CHOPPED_STRAWBERRIES-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
     "CHOPPED_STRAWBERRIES-CROISSANT-DISH" -> "BLUEBERRIES",
     "BLUEBERRIES-CHOPPED_STRAWBERRIES-CROISSANT-DISH" -> "WINDOW"
     )
-  val croissantChoppedStrawberries= Map("NONE" -> "DOUGH",
+  val croissantChoppedStrawberries= Map("NONE" -> "DOUGH",  // check
     "DOUGH" -> "OVEN",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
-    "DISH-CROISSANT" -> "TABLE-STRAWBERRIES",
-    "NONE-CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
-    "STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "CHOPPING",
-    "CHOPPED_STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
-    "NONE-CHOPPED_STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
-    "DISH-CROISSANT-CHOPPED_STRAWBERRIES" -> "WINDOW"
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT-DISH" -> "TABLE@STRAWBERRIES",
+    "NONE#CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
+    "DISH-CROISSANT-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
+    "NONE#CROISSANT-CHOPPED_STRAWBERRIES-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
+    "CHOPPED_STRAWBERRIES-CROISSANT-DISH" -> "WINDOW"
   )
   val croissantBlueberries = Map("NONE" -> "DOUGH",
     "DOUGH" -> "OVEN",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
     "CROISSANT-DISH" -> "BLUEBERRIES",
     "BLUEBERRIES-CROISSANT-DISH" -> "WINDOW"
   )
-  val croissantBlueberriesIcecream = Map("NONE" -> "DOUGH",
+  val croissantBlueberriesIcecream = Map("NONE" -> "DOUGH", // check
     "DOUGH" -> "OVEN",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
     "CROISSANT-DISH" -> "BLUEBERRIES",
-    "BLUEBERRIES-CROISSANT-DISH-" -> "ICE_CREAM",
+    "BLUEBERRIES-CROISSANT-DISH" -> "ICE_CREAM",
     "BLUEBERRIES-CROISSANT-DISH-ICE_CREAM" -> "WINDOW"
   )
   val iceCreamCroissant = Map("NONE" -> "DOUGH",
     "DOUGH" -> "OVEN",
-    "NONE-CROISSANT-IS-READY" -> "DISH",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
     "CROISSANT-DISH" -> "ICE_CREAM",
     "CROISSANT-DISH-ICE_CREAM" -> "WINDOW",
   )
-  val iceCreamCroissantChoppedStrawberries = Map("NONE" -> "DOUGH",
+  val iceCreamCroissantChoppedStrawberries = Map("NONE" -> "DOUGH", // correct
     "DOUGH" -> "OVEN",
-    "NONE-CROISSANT-IS-READY" -> "DISH",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
-    "CROISSANT-DISH" -> "TABLE-STRAWBERRIES",
-    "NONE-CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
-    "STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "CHOPPING",
-    "CHOPPED_STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT-DISH" -> "TABLE@STRAWBERRIES",
+    "NONE#CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
+    "DISH-CROISSANT-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
+    "NONE#CROISSANT-CHOPPED_STRAWBERRIES-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
     "CHOPPED_STRAWBERRIES-CROISSANT-DISH" -> "ICE_CREAM",
-    "CHOPPED_STRAWBERRIES-CROISSANT-DISH-ICE_CREAM" -> "WINDOW",
+    "CHOPPED_STRAWBERRIES-CROISSANT-DISH-ICE_CREAM" -> "WINDOW"
   )
-  val iceCreamBlueberriesCroissantChoppedStrawberries = Map("NONE" -> "DOUGH",
+  val iceCreamBlueberriesCroissantChoppedStrawberries = Map("NONE" -> "DOUGH",  // correct
     "DOUGH" -> "OVEN",
-    "NONE-CROISSANT-IS-READY" -> "DISH",
-    "NONE-WAITING-FOR-CROISSANT" -> "DISH",
-    "DISH-WAITING-FOR-CROISSANT" -> "MOVE-OVEN",
-    "DISH-CROISSANT-IS-READY" -> "OVEN",
-    "CROISSANT-DISH" -> "TABLE-STRAWBERRIES",
-    "NONE-CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
-    "STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "CHOPPING",
-    "CHOPPED_STRAWBERRIES-CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
-    "CHOPPED_STRAWBERRIES-CROISSANT-DISH" -> "ICE_CREAM",
-    "CHOPPED_STRAWBERRIES-CROISSANT-DISH-ICE_CREAM-" -> "BLUEBERRIES",
-    "BLUEBERRIES-CHOPPED_STRAWBERRIES-CROISSANT-DISH-ICE_CREAM" -> "WINDOW",
-    "STRAWBERRIES-WAITING-FOR-CROISSANT" -> "CHOPPING",
-    "CHOPPED_STRAWBERRIES-WAITING-FOR-CROISSANT" -> "TABLE-OVEN",
-    "CHOPPED_STRAWBERRIES-CROISSANT-IS-READY" -> "TABLE-OVEN",
-    "NONE-CROISSANT-IS-READY" -> "OVEN")
+    "NONE#WAITING-FOR-CROISSANT" -> "DISH",
+    "DISH#WAITING-FOR-CROISSANT" -> "MOVE@OVEN",
+    "NONE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT" -> "DISH",
+    "DISH#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT-DISH" -> "TABLE@STRAWBERRIES",
+    "NONE#CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT",
+    "DISH-CROISSANT-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
+    "NONE#CROISSANT-CHOPPED_STRAWBERRIES-ON-A-TABLE" -> "DISH-CROISSANT-CHOPPED_STRAWBERRIES",
+    "CHOPPED_STRAWBERRIES-CROISSANT-DISH" -> "BLUEBERRIES",
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-CROISSANT-DISH" -> "ICE_CREAM",
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-CROISSANT-DISH-ICE_CREAM" -> "WINDOW"
+  )
 
   val blueberriesChoppedStrawberriesCroissantIceCreamTart = Map("NONE" -> "DOUGH")
-  val blueberriesChoppedStrawberriesIceCreamTart = Map("NONE" -> "DOUGH")
-  val blueberriesChoppedStrawberriesCroissantTart = Map("NONE" -> "DOUGH")
-  val blueberriesCroissantIceCreamTart = Map("NONE" -> "DOUGH")
+  val blueberriesChoppedStrawberriesIceCreamTart = Map(
+    "NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@STRAWBERRIES",
+    "NONE#TART-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#TART-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CHOPPED_STRAWBERRIES-ON-A-TABLE" -> "DISH-TART-CHOPPED_STRAWBERRIES",
+    "CHOPPED_STRAWBERRIES-DISH-TART" -> "BLUEBERRIES",
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-DISH-TART" -> "ICE_CREAM",
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-DISH-ICE_CREAM-TART" -> "WINDOW"
+  )
+  def blueberriesChoppedStrawberriesCroissantTart = Map(    // correct
+    "NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@DOUGH",
+    "NONE#TART-ON-A-TABLE" -> "DOUGH",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "NONE#TART-ON-A-TABLE#WAITING-FOR-CROISSANT" -> "WAIT",
+    "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#TART-CROISSANT-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
+    "NONE#TART-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT-CHOPPED_STRAWBERRIES",
+    "CHOPPED_STRAWBERRIES-CROISSANT-DISH-TART" -> "BLUEBERRIES",
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-CROISSANT-DISH-TART" -> "WINDOW"
+  )
+  val blueberriesCroissantIceCreamTart = Map( // correct
+    "NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@DOUGH",
+    "NONE#TART-ON-A-TABLE" -> "DOUGH",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "NONE#TART-ON-A-TABLE#WAITING-FOR-CROISSANT" -> "WAIT",
+    "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
+    "CROISSANT-DISH-TART" -> "BLUEBERRIES",
+    "BLUEBERRIES-CROISSANT-DISH-TART" -> "ICE_CREAM",
+    "BLUEBERRIES-CROISSANT-DISH-ICE_CREAM-TART" -> "WINDOW"
+  )
   val choppedStrawberriesCroissantIceCreamTart = Map(
     "NONE" -> "DOUGH",
     "DOUGH" -> "CHOPPING",
     "CHOPPED_DOUGH" -> "BLUEBERRIES",
     "RAW_TART" -> "OVEN",
-    "NONE-WAITING-FOR-TART" -> "DISH",
-    "NONE-TART-IS-READY" -> "DISH",
-    "DISH-WAITING-FOR-TART" -> "MOVE-OVEN",
-    "DISH-TART-IS-READY" -> "OVEN",
-    "DISH-TART" -> "TABLE-DOUGH",
-    "NONE-TART-ON-A-TABLE" -> "DOUGH",
-    "DOUGH-TART-ON-A-TABLE" -> "OVEN",
-    "NONE-TART-ON-A-TABLE-WAITING-FOR-CROISSANT" -> "WAIT",
-    "NONE-TART-ON-A-TABLE-CROISSANT-IS-READY" -> "OVEN",
-    "CROISSANT-TART-ON-A-TABLE" -> "DISH-TART",
-    "NONE-TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
-    "CROISSANT-DISH-TART" -> "TABLE-STRAWBERRIES"
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@DOUGH",
+    "NONE#TART-ON-A-TABLE" -> "DOUGH",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "NONE#TART-ON-A-TABLE#WAITING-FOR-CROISSANT" -> "WAIT",
+    "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#TART-CROISSANT-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
+    "CHOPPED_STRAWBERRIES-CROISSANT-DISH-TART" -> "ICE_CREAM",
+    "CHOPPED_STRAWBERRIES-CROISSANT-DISH-ICE_CREAM-TART" -> "WINDOW"
   )
-//  ("DISH-TART", "CROISSANT-TART-ON-A-TABLE") -> "-TART-CROISSANT-ON-A-TABLE"
-  val blueberriesChoppedStrawberriesTart = Map("NONE" -> "DOUGH")
-  val blueberriesCroissantTart = Map("NONE" -> "DOUGH")
-  val choppedStrawberriesCroissantTart = Map("NONE" -> "DOUGH")
-  val blueberriesIceCreamTart = Map("NONE" -> "DOUGH")
-  val choppedStrawberriesIceCreamTart = Map("NONE" -> "DOUGH")
-  val croissantIceCreamTart = Map("NONE" -> "DOUGH")
-  val blueberriesTart = Map("NONE" -> "DOUGH")
-  val croissantTart = Map("NONE" -> "DOUGH",
+  val blueberriesChoppedStrawberriesTart = Map(   // check
+    "NONE" -> "DOUGH",
     "DOUGH" -> "CHOPPING",
     "CHOPPED_DOUGH" -> "BLUEBERRIES",
     "RAW_TART" -> "OVEN",
-    "NONE-WAITING-FOR-TART" -> "DISH",
-    "NONE-TART-IS-READY" -> "DISH",
-    "DISH-WAITING-FOR-TART" -> "MOVE-OVEN",
-    "DISH-TART-IS-READY" -> "OVEN",
-    "DISH-TART" -> "TABLE-DOUGH",
-    "NONE-TART-ON-A-TABLE" -> "DOUGH",
-    "DOUGH-TART-ON-A-TABLE" -> "OVEN",
-    "CROISSANT-TART-ON-A-TABLE" -> "TART"
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@STRAWBERRIES",
+    "NONE#TART-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#TART-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CHOPPED_STRAWBERRIES-ON-A-TABLE" -> "DISH-TART-CHOPPED_STRAWBERRIES",
+    "CHOPPED_STRAWBERRIES-DISH-TART" -> "BLUEBERRIES",
+    "BLUEBERRIES-CHOPPED_STRAWBERRIES-DISH-TART" -> "WINDOW"
   )
-  val choppedStrawberriesTart = Map("NONE" -> "DOUGH")
+  val blueberriesCroissantTart = Map(
+    "NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@DOUGH",
+    "NONE#TART-ON-A-TABLE" -> "DOUGH",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "NONE#TART-ON-A-TABLE#WAITING-FOR-CROISSANT" -> "WAIT",
+    "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
+    "CROISSANT-DISH-TART" -> "BLUEBERRIES",
+    "BLUEBERRIES-CROISSANT-DISH-TART" -> "WINDOW"
+  )
+  val choppedStrawberriesCroissantTart = Map(   // check
+    "NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@DOUGH",
+    "NONE#TART-ON-A-TABLE" -> "DOUGH",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "NONE#TART-ON-A-TABLE#WAITING-FOR-CROISSANT" -> "WAIT",
+    "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CROISSANT-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#TART-CROISSANT-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
+    "NONE#TART-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT-CHOPPED_STRAWBERRIES",
+    "CHOPPED_STRAWBERRIES-CROISSANT-DISH-TART" -> "WINDOW"
+  )
+  val blueberriesIceCreamTart = Map("NONE" -> "DOUGH")
+  val choppedStrawberriesIceCreamTart = Map("NONE" -> "DOUGH")
+  val croissantIceCreamTart = Map("NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@DOUGH",
+    "NONE#TART-ON-A-TABLE" -> "DOUGH",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "NONE#TART-ON-A-TABLE#WAITING-FOR-CROISSANT" -> "WAIT",
+    "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
+    "CROISSANT-DISH-TART" -> "ICE_CREAM",
+    "CROISSANT-DISH-ICE_CREAM-TART" -> "WINDOW")
+  val blueberriesTart = Map("NONE" -> "DOUGH",  // correct
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "BLUEBERRIES",
+    "BLUEBERRIES-DISH-TART" -> "WINDOW"
+  )
+  def croissantTart = Map("NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@DOUGH",
+    "NONE#TART-ON-A-TABLE" -> "DOUGH",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "DOUGH#TART-ON-A-TABLE" -> "OVEN",
+    "NONE#TART-ON-A-TABLE#WAITING-FOR-CROISSANT" -> "WAIT",
+    "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+    "CROISSANT#TART-ON-A-TABLE" -> "DISH-TART",
+    "NONE#TART-CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT",
+    "CROISSANT-DISH-TART" -> "WINDOW"
+  )
+  val choppedStrawberriesTart = Map(  // check
+    "NONE" -> "DOUGH",
+    "DOUGH" -> "CHOPPING",
+    "CHOPPED_DOUGH" -> "BLUEBERRIES",
+    "RAW_TART" -> "OVEN",
+    "NONE#WAITING-FOR-TART" -> "DISH",
+    "NONE#TART-IS-READY" -> "DISH",
+    "DISH#WAITING-FOR-TART" -> "MOVE@OVEN",
+    "DISH#TART-IS-READY" -> "OVEN",
+    "DISH-TART" -> "TABLE@STRAWBERRIES",
+    "NONE#TART-ON-A-TABLE" -> "STRAWBERRIES",
+    "STRAWBERRIES#TART-ON-A-TABLE" -> "CHOPPING",
+    "CHOPPED_STRAWBERRIES#TART-ON-A-TABLE" -> "DISH-TART",
+    "CHOPPED_STRAWBERRIES-DISH-TART" -> "WINDOW"
+  )
 
   val cookBook = Map("BLUEBERRIES-CROISSANT-DISH" -> croissantBlueberries,
                      "CROISSANT-DISH" -> croissant,
@@ -185,7 +361,7 @@ object Player extends App {
                      "BLUEBERRIES-CHOPPED_STRAWBERRIES-DISH-ICE_CREAM-TART" -> blueberriesChoppedStrawberriesIceCreamTart,
                      "BLUEBERRIES-CROISSANT-DISH-ICE_CREAM-TART" -> blueberriesCroissantIceCreamTart,
                      "CHOPPED_STRAWBERRIES-CROISSANT-DISH-ICE_CREAM-TART" -> choppedStrawberriesCroissantIceCreamTart,
-                     "BLUEBERRIES-CHOPPED_STRAWBERRIES-DISH-TART" -> blueberriesChoppedStrawberriesCroissantIceCreamTart,
+                     "BLUEBERRIES-CHOPPED_STRAWBERRIES-DISH-TART" -> blueberriesChoppedStrawberriesTart,
                      "BLUEBERRIES-CROISSANT-DISH-TART" -> blueberriesCroissantTart,
                      "CHOPPED_STRAWBERRIES-CROISSANT-DISH-TART" -> choppedStrawberriesCroissantTart,
                      "BLUEBERRIES-DISH-ICE_CREAM-TART" -> blueberriesIceCreamTart,
@@ -205,19 +381,21 @@ object Player extends App {
   def isEmptyTable(matrix: List[String], row: Int, col: Int) = row >= 0 && row < 7 && col >= 0 && col < 11 && (matrix(row)(col) == '#')
   def replaceSym(matrix: List[String], oldSym: Char, newSym: Char) = matrix.map(_.replace(oldSym, newSym))
   def cookBookKey(order: String) = order.split('-').sorted.reduce(_ + "-" + _)
-  def searchClosestEmptyTable(matrix: List[String], point: Point) = {
-    Console.err.println(s"CLOSEST EMPTY TABLE: $point")
-    List((point._1 - 1, point._2 - 1), (point._1, point._2 - 1),
-      (point._1 + 1, point._2 - 1), (point._1 - 1, point._2), (point._1 + 1, point._2), (point._1 - 1, point._2 + 1),
-      (point._1, point._2 + 1), (point._1 + 1, point._2 + 1)).filter(p => isEmptyTable(matrix, p._2, p._1)).head
+  def searchClosestEmptyTable(matrix: List[String],  dynamicMap: Map[String, List[Point]], point: Point, diameter: Int): Point = {
+    Console.err.println(s"CLOSEST EMPTY TABLE OF $point")
+    List((point._1 - diameter, point._2 - diameter), (point._1, point._2 - diameter),
+      (point._1 + diameter, point._2 - diameter), (point._1 - diameter, point._2), (point._1 + diameter, point._2), (point._1 - diameter, point._2 + diameter),
+      (point._1, point._2 + diameter), (point._1 + diameter, point._2 + diameter)).find(p => isEmptyTable(matrix, p._2, p._1) && !dynamicMap.values.exists(_.contains(p))).getOrElse(
+        searchClosestEmptyTable(matrix, dynamicMap, point, diameter + 1))
   }
 
-  def reach(graphMatrix: List[String], target: String, from: Point, dynamicMap: Map[String, List[(Int, Int)]]) = {
+  def reach(graphMatrix: List[String], target: String, from: Point, dynamicMap: Target) = {
     Console.err.println(s"TARGETPOINT::target: $target")
-    if (target == "TABLE") ("USE", searchClosestEmptyTable(graphMatrix, from))
-    else if (target.startsWith("MOVE")) ("MOVE", dynamicMap.getOrElse(target.split('-')(1), List(searchClosestEmptyTable(graphMatrix, from))).head)
-    else if (target.startsWith("TABLE")) ("USE", searchClosestEmptyTable(graphMatrix, dynamicMap.getOrElse(target.split('-')(1), List(searchClosestEmptyTable(graphMatrix, from))).head))
-    else if (target == "WAIT") ("WAIT", (-1,-1)) else ("USE", dynamicMap.getOrElse(target, List(searchClosestEmptyTable(graphMatrix, from))).head)
+    if (target == "TABLE") ("USE", searchClosestEmptyTable(graphMatrix, dynamicMap, from, 1))
+    else if (target.startsWith("MOVE@")) ("MOVE", dynamicMap.getOrElse(target.split('@')(1), List(searchClosestEmptyTable(graphMatrix, dynamicMap, from, 1))).head)
+    else if (target.startsWith("TABLE@")) ("USE", searchClosestEmptyTable(graphMatrix, dynamicMap, dynamicMap.getOrElse(target.split('@')(1), List(
+        searchClosestEmptyTable(graphMatrix, dynamicMap, from, 1))).head, 1))
+    else if (target == "WAIT") ("WAIT", (-1,-1)) else ("USE", dynamicMap.getOrElse(target, List(searchClosestEmptyTable(graphMatrix, dynamicMap, from, 1))).head)
   }
 
   def searchSym(matrix: List[String], sym: Char) = {
@@ -228,17 +406,48 @@ object Player extends App {
                    (point._1 + 1, point._2 - 1), (point._1 - 1, point._2), (point._1 + 1, point._2), (point._1 - 1, point._2 + 1),
                    (point._1, point._2 + 1), (point._1 + 1, point._2 + 1)).filter(p => walk(matrix, p._2, p._1))
 
-  def nextTarget(myState: String, customerItems: List[Array[String]], cookBook: Map[String, Map[String, String]]) = {
+  def getTargetFromRecipeBook(recipe: Map[String, String], targetMap: Target, myState: String) = recipe.get(myState) match {
+      case Some(newState) =>
+        if (targetMap.keys.exists { key =>
+          (if (newState.startsWith("TABLE@") || newState.startsWith("MOVE@")) newState.split("@")(1) else newState) == key
+        }) newState else "TABLE"
+        //        targetMap.keys.find(key => (if (newState.startsWith("TABLE@") || newState.startsWith("MOVE@")) newState.split("@")(1) else newState) == key).getOrElse("TABLE")
+      case None => "TABLE"
+    }
+
+  def getTargetFromGameField(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetMap: Target,
+                             recipe: Map[String, String], customerOrdersData: List[(String, String)]) = {
+    val customerOrdersDataMap = customerOrdersData.toMap
+    val dishesOnTables = targetMap.keys.filter(tmKey => tmKey.startsWith("DISH-"))
+    val dishFromMyRecipe = dishesOnTables.find(dish => {
+      recipe.keys.exists(_ == customerOrdersDataMap.getOrElse(dish, "")) &&
+        recipe(customerOrdersDataMap.getOrElse(dish, "")) == "WINDOW"
+    })
+    dishFromMyRecipe
+  }
+
+  def getTargetToReadyDish(player: Point, state: String, dish: String, targetMap: Target) = {
+    val target = targetMap(dish).head
+    if (Math.max(player._1, target._1) - Math.min(player._1, target._1)  <= 2 && Math.max(player._2, target._2) - Math.min(player._2, target._2) <= 2) {
+      (if(state.startsWith("NONE")) ""  else "TABLE@") + dish
+    } else "MOVE@" + dish
+  }
+
+//  def getProduct()
+  def nextTarget(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetMap: Target, player: Point) = {
 //    customerItems.foreach(item => Console.err.println(s"customerItem: ${item(0)} - ${item(1)}\thave: $myState"))
-    val cookBookData = customerItems.map(orderData =>  (orderData(0), cookBookKey(orderData(0)))).filter {
+    val customerOrdersData = customerItems.map(orderData =>  (orderData(0), cookBookKey(orderData(0))))/*.filter {
       pair => cookBook.getOrElse(pair._2, Map.empty[String, String]).contains(myState) /*&& !pair._2.contains("TART")*/
-    }.sortBy(_._2)
-    val properOrder = cookBookData.headOption.getOrElse("NO SUCH ORDER!", "START A NEW ONE!")
+    }*/.sortBy(_._2)
+    val properOrder = customerOrdersData.headOption.getOrElse("NO SUCH ORDER!", "START A NEW ONE!")
 
     Console.err.println(s"want to cook: ${properOrder._1}\tkey: ${properOrder._2} have: $myState")
     val recipe = cookBook.getOrElse(properOrder._2, Map.empty[String, String])
     Console.err.println(s"recipe is empty: ${recipe.isEmpty}\tmyState: $myState")
-    recipe.getOrElse(myState, "TABLE")
+    getTargetFromGameField(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetMap, recipe, customerOrdersData) match {
+      case Some(dish) => getTargetToReadyDish(player, myState, dish, targetMap)
+      case None => /*if (myState == "NONE") getProduct() else */getTargetFromRecipeBook(recipe, targetMap, myState)
+    }
   }
 
   val numallcustomers = readInt
@@ -258,50 +467,83 @@ object Player extends App {
                       "DOUGH" -> List(searchSym(graphMatrix, 'H').getOrElse((-1,-1))),
                       "WINDOW" -> List(searchSym(graphMatrix, 'W').getOrElse((-1,-1))))
 
-  def addToMap(oldMap: Map[String, List[(Int, Int)]], key: String, value: (Int, Int)) =
+  def addToMap(oldMap: Target, key: String, value: (Int, Int)) =
     oldMap + (key -> (oldMap.get(key) match {
       case Some(lst) => value :: lst
       case None => List(value)
     }))
   // (target, state)
-  val stateBook = Map(
-                      ("OVEN", "DOUGH") -> "-WAITING-FOR-CROISSANT",
-                      ("STRAWBERRIES", "NONE-WAITING-FOR-CROISSANT") -> "-WAITING-FOR-CROISSANT",
-                      ("DISH", "NONE-WAITING-FOR-CROISSANT") -> "-WAITING-FOR-CROISSANT",
-                      ("DISH", "NONE-CROISSANT-IS-READY") -> "-CROISSANT-IS-READY",
-                      ("CHOPPING", "STRAWBERRIES-WAITING-FOR-CROISSANT") -> "-WAITING-FOR-CROISSANT",
+  def stateBook = Map(
+                      ("OVEN", "DOUGH") -> "#WAITING-FOR-CROISSANT",
+/*
+                      ("STRAWBERRIES", "NONE#WAITING-FOR-CROISSANT") -> "#WAITING-FOR-CROISSANT",
+                      ("DISH", "NONE#WAITING-FOR-CROISSANT") -> "#WAITING-FOR-CROISSANT",
+                      ("DISH", "NONE#CROISSANT-IS-READY") -> "#CROISSANT-IS-READY",
+                      ("CHOPPING", "STRAWBERRIES#WAITING-FOR-CROISSANT") -> "#WAITING-FOR-CROISSANT",
 
-                      ("TABLE-STRAWBERRIES", "DISH-CROISSANT") -> "-CROISSANT-ON-A-TABLE",
-                      ("STRAWBERRIES", "NONE-CROISSANT-ON-A-TABLE") -> "-CROISSANT-ON-A-TABLE",
-                      ("DISH-CROISSANT", "CHOPPED_STRAWBERRIES-CROISSANT-ON-A-TABLE") -> "-CHOPPED_STRAWBERRIES-CROISSANT-ON-A-TABLE",
-                      ("CHOPPING", "STRAWBERRIES-CROISSANT-ON-A-TABLE") -> "-CROISSANT-ON-A-TABLE",
+                      ("TABLE@STRAWBERRIES", "DISH-CROISSANT") -> "#CROISSANT-ON-A-TABLE",
+                      ("STRAWBERRIES", "NONE#CROISSANT-ON-A-TABLE") -> "#CROISSANT-ON-A-TABLE",
+                      ("DISH-CROISSANT", "CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE") -> "#CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE",
+                      ("CHOPPING", "STRAWBERRIES#CROISSANT-ON-A-TABLE") -> "#CROISSANT-ON-A-TABLE",
+*/
 
-                      ("OVEN", "RAW_TART") -> "-WAITING-FOR-TART",
-                      ("STRAWBERRIES", "NONE-WAITING-FOR-TART") -> "-WAITING-FOR-TART",
-                      ("DISH", "NONE-WAITING-FOR-TART") -> "-WAITING-FOR-TART",
-                      ("DISH", "NONE-TART-IS-READY") -> "-TART-IS-READY",
-                      ("CHOPPING", "STRAWBERRIES-WAITING-FOR-TART") -> "-WAITING-FOR-TART",
+                      ("OVEN", "RAW_TART") -> "#WAITING-FOR-TART",
+                      ("TABLE@DOUGH", "DISH-TART") -> "#TART-ON-A-TABLE",
+                      ("TABLE@STRAWBERRIES", "DISH-TART") -> "#TART-ON-A-TABLE",
+                      ("TABLE@STRAWBERRIES", "CROISSANT-DISH") -> "#CROISSANT-ON-A-TABLE",
+                      ("OVEN", "DOUGH#TART-ON-A-TABLE") -> "#TART-ON-A-TABLE#WAITING-FOR-CROISSANT",
+                      ("DISH-TART", "CROISSANT#TART-ON-A-TABLE") -> "#TART-CROISSANT-ON-A-TABLE",
+                      ("DISH-CROISSANT", "CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE") -> "#CROISSANT-CHOPPED_STRAWBERRIES-ON-A-TABLE",
+                      ("DISH-TART", "CHOPPED_STRAWBERRIES#TART-ON-A-TABLE") -> "#TART-CHOPPED_STRAWBERRIES-ON-A-TABLE",
+                      ("DISH-TART-CROISSANT", "NONE#TART-CROISSANT-ON-A-TABLE") -> "",
+                      ("DISH-TART-CHOPPED_STRAWBERRIES", "NONE#TART-CHOPPED_STRAWBERRIES-ON-A-TABLE") -> "",
+                      ("OVEN", "DISH#TART-IS-READY") -> "",
+                      ("OVEN", "DISH#CROISSANT-IS-READY") -> "",
+                      ("OVEN", "NONE#TART-IS-READY") -> "",
+                      ("OVEN", "NONE#CROISSANT-IS-READY") -> "",
+                      ("OVEN", "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY") -> "#TART-ON-A-TABLE",
+                      ("OVEN", "DOUGH#TART-ON-A-TABLE") -> "#TART-ON-A-TABLE#WAITING-FOR-CROISSANT",
+                      ("DISH-TART-CROISSANT", "CHOPPED_STRAWBERRIES#TART-CROISSANT-ON-A-TABLE") -> "#TART-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE",
+                      ("DISH-TART-CROISSANT-CHOPPED_STRAWBERRIES", "NONE#TART-CHOPPED_STRAWBERRIES#CROISSANT-ON-A-TABLE") -> "",
+                      ("DISH-CROISSANT-CHOPPED_STRAWBERRIES", "NONE#CROISSANT-CHOPPED_STRAWBERRIES-ON-A-TABLE") -> ""
+    /*"NONE#TART-ON-A-TABLE#CROISSANT-IS-READY" -> "OVEN",
+                      ("STRAWBERRIES", "NONE#WAITING-FOR-TART") -> "#WAITING-FOR-TART",
+                      ("DISH", "NONE#WAITING-FOR-TART") -> "#WAITING-FOR-TART",
+                      ("DISH", "NONE#TART-IS-READY") -> "#TART-IS-READY",
+                      ("CHOPPING", "STRAWBERRIES#WAITING-FOR-TART") -> "#WAITING-FOR-TART",
 
-                      ("TABLE-DOUGH", "DISH-TART") -> "-TART-ON-A-TABLE",
-                      ("DOUGH", "NONE-TART-ON-A-TABLE") -> "-TART-ON-A-TABLE",
-                      ("OVEN", "NONE-TART-ON-A-TABLE-CROISSANT-IS-READY") -> "-TART-ON-A-TABLE",
-                      ("OVEN", "DOUGH-TART-ON-A-TABLE") -> "-TART-ON-A-TABLE-WAITING-FOR-CROISSANT",
-                      ("DISH-TART", "CROISSANT-TART-ON-A-TABLE") -> "-TART-CROISSANT-ON-A-TABLE"
+                      ("DOUGH", "NONE#TART-ON-A-TABLE") -> "#TART-ON-A-TABLE",
+                      ("OVEN", "NONE#TART-ON-A-TABLE#CROISSANT-IS-READY") -> "#TART-ON-A-TABLE",
+*/
   )
 
   def newState(prevPlayeritem: String, playeritem: String, prevTarget: String, myState: String) = {
 //    stateBook.foreach(aa => Console.err.println(s"stateBook: $aa"))
     Console.err.println(s"\tprevPlayeritem: $prevPlayeritem newPlayeitem: $playeritem\n\tprevState: $prevState prevTarget: $prevTarget stateCandidate: $myState" +
       s"\tstateBook contains: ${stateBook.contains((prevTarget, myState))}")
-    cookBookKey(playeritem) + stateBook.getOrElse((prevTarget, myState), "")
+    val stateArr = myState.split('#')
+    cookBookKey(playeritem) + stateBook.getOrElse((prevTarget, myState), if (stateArr.length > 1) "#" + stateArr(1) else "")
   }
+
+  def updateState(state: String, ovencontents: String, dynamicMap: Target) = {
+    if (ovencontents == "CROISSANT") myState = myState.replace("#WAITING-FOR-CROISSANT", "#CROISSANT-IS-READY")
+    if (ovencontents == "TART") myState = myState.replace("#WAITING-FOR-TART", "#TART-IS-READY")
+    if (ovencontents == "DOUGH") myState = myState.replace("#CROISSANT-IS-READY", "").replace("#TART-IS-READY", "")
+    if (ovencontents == "NONE") myState = myState.replace("#CROISSANT-IS-READY", "").replace("#TART-IS-READY", "").replace("#WAITING-FOR-CROISSANT", "").replace("#WAITING-FOR-TART", "")
+//    if (!dynamicMap.keys.exists(_ == "DISH-TART-CROISSANT")) myState = myState.replace("#TART-CROISSANT-ON-A-TABLE", "")
+//    if (!dynamicMap.keys.exists(_ == "DISH-CROISSANT")) myState = myState.replace("#CROISSANT-ON-A-TABLE", "")
+//    if (!dynamicMap.keys.exists(_ == "DISH-CROISSANT-CHOPPED_STRAWBERRIES")) myState = myState.replace("#CROISSANT-CHOPPED_STRAWBERRIES-ON-A-TABLE", "")
+//    if (!dynamicMap.keys.exists(_ == "DISH-TART")) myState = myState.replace("#TART-ON-A-TABLE", "")
+    myState
+  }
+
 
   // game loop
   while (true) {
     var dynamicMap = targetStaticMap
     val turnsremaining = readInt
-    // Console.err.println(s"turnsremaining: $turnsremaining")
-
+     Console.err.println(s"turnsremaining: $turnsremaining")
+    if (turnsremaining >= 198) myState = "NONE"
     val Array(_playerx, _playery, playeritem) = readLine split " "
     if (playeritem != prevPlayeritem) {
       myState = newState(prevPlayeritem, playeritem, target, myState)
@@ -328,19 +570,20 @@ object Player extends App {
     val Array(ovencontents, _oventimer) = readLine split " "
     dynamicMap = addToMap(dynamicMap, ovencontents, searchSym(graphMatrix, 'O').get)
 //    dynamicMap.foreach(d => Console.err.println(s"Dynamic map content: ${d._1} -> ${d._2}"))
-    if (ovencontents == "CROISSANT") myState = myState.replace("-WAITING-FOR-CROISSANT", "-CROISSANT-IS-READY")
-    if (ovencontents == "TART") myState = myState.replace("-WAITING-FOR-TART", "-TART-IS-READY")
-    if (ovencontents == "NONE") myState = myState.replace("-CROISSANT-IS-READY", "").replace("-TART-IS-READY", "")
-
     val oventimer = _oventimer.toInt
 //   Console.err.println(s"ovencontents: $ovencontents, oventimer: $oventimer")
     val numcustomers = readInt // the number of customers currently waiting for food
     // Console.err.println(s"numcustomers: $numcustomers")
     val customers = (for (i <- 0 until numcustomers) yield readLine split " ").toList.sortBy(_(1))
     customers.foreach(c => Console.err.println(s"customeritem: ${c(0)}, customeraward: ${c(1)}"))
-    val trg = nextTarget(myState, customers, cookBook)
+    val trg = nextTarget(myState, customers, cookBook, dynamicMap, (playerx, playery))
 //    Console.err.println(s"trg: $trg")
     val action = reach(graphMatrix, trg, (playerx, playery), dynamicMap)
+
+    Console.err.print(s"myState [$myState] after update ")
+    myState = updateState(myState, ovencontents, dynamicMap)
+    Console.err.println(s" [$myState]")
+
     if (action._2._1 >= 0) target = /*action._2*/ trg
 
     println(s"${action._1} ${toString(action._2)}")
