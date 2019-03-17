@@ -1,7 +1,7 @@
 package codingame.challenge.codealamode
 
 import codingames.challenge.codealamode.Player
-import codingames.challenge.codealamode.Player.searchSym
+import codingames.challenge.codealamode.Player.{graphMatrix, searchSym}
 import org.scalatest.FlatSpec
 
 class PlayerTests extends FlatSpec {
@@ -30,17 +30,47 @@ class PlayerTests extends FlatSpec {
     "#.........#",
     "#####W#####"
   )
-  val targetMap = Map("DISH" -> searchSym(testMatrix, 'D').getOrElse((-1,-1)),
-                      "ICE_CREAM" -> searchSym(testMatrix, 'I').getOrElse((-1,-1)),
-                      "BLUEBERRIES" -> searchSym(testMatrix, 'B').getOrElse((-1,-1)),
-                      "WINDOW" -> searchSym(testMatrix, 'W').getOrElse((-1,-1)))
 
+  val targetStaticMap = Map("DISH" -> List(searchSym(testMatrix, 'D').getOrElse((-1,-1))),
+    "ICE_CREAM" -> List(Player.searchSym(testMatrix, 'I').getOrElse((-1,-1))),
+    "BLUEBERRIES" -> List(searchSym(testMatrix, 'B').getOrElse((-1,-1))),
+    "STRAWBERRIES" -> List(searchSym(testMatrix, 'S').getOrElse((-1,-1))),
+    "CHOPPING" -> List(searchSym(testMatrix, 'C').getOrElse((-1,-1))),
+    "OVEN" -> List(searchSym(testMatrix, 'O').getOrElse((-1,-1))),
+    "DOUGH" -> List(searchSym(testMatrix, 'H').getOrElse((-1,-1))),
+    "WINDOW" -> List(searchSym(testMatrix, 'W').getOrElse((-1,-1))))
+
+  def dynamicMap = {
+    var a = addToMap(targetStaticMap, "DISH-TART-CROISSANT", (2, 4))
+    a = addToMap(a, "DISH-TART-CROISSANT-BLUEBERRIES-CHOPPED_STRAWBERRIES", (5, 0))
+    a = addToMap(a, "CROISSANT", (1, 3))
+//    a = addToMap(a, "DISH-BLUEBERRIES", (1, 3))
+    a
+  }
+
+
+/*
   val targetStaticMap = Map("DISH" -> List((8, 4)),
     "DISH-TART-CROISSANT" -> List((2, 4)),
     "DISH-TART-CROISSANT-BLUEBERRIES-CHOPPED_STRAWBERRIES" -> List((5, 0)),
     "OVEN" -> List((1, 1)),
     "DOUGH" -> List((2, 0)),
     "WASH" -> List((8, 6)))
+*/
+
+
+  "A Player" should "get target from game field" in {
+    val myState = "DISH-TART"
+    //    val myOrder = Player.cookBookKey("DISH-TART-CROISSANT-BLUEBERRIES-CHOPPED_STRAWBERRIES")
+    val myOrder = Player.cookBookKey("DISH-TART-CROISSANT")
+    val customeritems = List(Array("DISH-ICE_CREAM-BLUEBERRIES", "42"), Array("DISH-ICE_CREAM-BLUEBERRIES", "43"),
+      Array("DISH-TART-CROISSANT-BLUEBERRIES-CHOPPED_STRAWBERRIES", "815"), Array("DISH-ICE_CREAM-BLUEBERRIES", "44"))
+    val cookBookData = customeritems.map(orderData =>  (orderData(0), Player.cookBookKey(orderData(0))))/*.filter {
+      pair => cookBook.getOrElse(pair._2, Map.empty[String, String]).contains(myState) /*&& !pair._2.contains("TART")*/
+    }*/.sortBy(_._2)
+    val res = Player.getTargetFromGameField(myState, customeritems, cookBook, targetStaticMap, dynamicMap, cookBook(myOrder), cookBookData)
+    Console.err.println(s"target: $res")
+  }
 
   "A Player" should "convert number to matrix and back" in {
     val point = (10, 2)
@@ -67,12 +97,6 @@ class PlayerTests extends FlatSpec {
       case Some(lst) => value :: lst
       case None => List(value)
     }))
-
-  "A Player" should "split" in {
-    val newState = "AA"
-    val bb = targetMap.keys.find(key => (if (key.startsWith("TABLE-") || key.startsWith("MOVE-")) key.split("-|#")(1) else key) == newState).getOrElse("TABLE")
-    Console.err.println(s"$bb")
-  }
 
   "A Player" should "find closest empty table 2" in {
     val point = (9,5)
@@ -108,18 +132,6 @@ class PlayerTests extends FlatSpec {
     Console.err.println(s"target: $target4")
   }
 
-  "A Player" should "get target from game field" in {
-    val myState = "DISH-TART"
-//    val myOrder = Player.cookBookKey("DISH-TART-CROISSANT-BLUEBERRIES-CHOPPED_STRAWBERRIES")
-    val myOrder = Player.cookBookKey("DISH-TART-CROISSANT")
-    val customeritems = List(Array("DISH-ICE_CREAM-BLUEBERRIES", "42"), Array("DISH-ICE_CREAM-BLUEBERRIES", "43"),
-      Array("DISH-TART-CROISSANT-BLUEBERRIES-CHOPPED_STRAWBERRIES", "815"), Array("DISH-ICE_CREAM-BLUEBERRIES", "44"))
-    val cookBookData = customeritems.map(orderData =>  (orderData(0), Player.cookBookKey(orderData(0))))/*.filter {
-      pair => cookBook.getOrElse(pair._2, Map.empty[String, String]).contains(myState) /*&& !pair._2.contains("TART")*/
-    }*/.sortBy(_._2)
-    val res = Player.getTargetFromGameField(myState, customeritems, cookBook, targetStaticMap, cookBook(myOrder), cookBookData)
-    Console.err.println(s"target: $res")
-  }
 
   "A Player" should "find another target" in {
 //    "CHOPPED_STRAWBERRIES#TART#CROISSANT-ON-A-TABLE" -> "DISH-TART-CROISSANT"

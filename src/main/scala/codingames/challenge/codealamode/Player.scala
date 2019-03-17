@@ -415,15 +415,34 @@ object Player extends App {
       case None => "TABLE"
     }
 
-  def getTargetFromGameField(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetMap: Target,
+  def getTargetFromGameField(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetStaticMap: Target, targetMap: Target,
                              recipe: Map[String, String], customerOrdersData: List[(String, String)]) = {
     val customerOrdersDataMap = customerOrdersData.toMap
-    val dishesOnTables = targetMap.keys.filter(tmKey => tmKey.startsWith("DISH-"))
-    val dishFromMyRecipe = dishesOnTables.find(dish => {
-      recipe.keys.exists(_ == customerOrdersDataMap.getOrElse(dish, "")) &&
-        recipe(customerOrdersDataMap.getOrElse(dish, "")) == "WINDOW"
+
+    val targetsOnTables = targetMap.keys.filterNot(tmKey => targetStaticMap.keys.exists(_ == tmKey))
+    val dishes = targetsOnTables.filter(_.startsWith("DISH-"))
+    val mayCook: List[(String, List[String])] = customerOrdersData.map(cod => {
+      val codIngredients = cod._1.split("-")
+      val totIngredients = targetsOnTables.map(tot => (tot.split("-"), tot)).toMap
+      (cod._1, totIngredients.keys.filter(ingr => ingr.forall(codIngredients.contains(_))).map(totIngredients(_)).toList.sortWith(
+        _.split("-").length > _.split("-").length
+      ))
+    }).filterNot(_._2.isEmpty)
+
+
+    mayCook.foreach(cook => {
+      Console.err.println(s"May cook: ${cook._1} -> ${cook._2.mkString("[", ", ", "]")}")
     })
-    dishFromMyRecipe
+    if (mayCook.isEmpty) {
+      val dishesOnTables = targetMap.keys.filter(tmKey => tmKey.startsWith("DISH-"))
+      val dishFromMyRecipe = dishesOnTables.find(dish => {
+        recipe.keys.exists(_ == customerOrdersDataMap.getOrElse(dish, "")) &&
+          recipe(customerOrdersDataMap.getOrElse(dish, "")) == "WINDOW"
+      })
+      dishFromMyRecipe
+    } else {
+      Some(mayCook.head._1)
+    }
   }
 
   def getTargetToReadyDish(player: Point, state: String, dish: String, targetMap: Target) = {
@@ -433,7 +452,7 @@ object Player extends App {
     } else "MOVE@" + dish
   }
 
-//  def getProduct()
+
   def nextTarget(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetMap: Target, player: Point) = {
 //    customerItems.foreach(item => Console.err.println(s"customerItem: ${item(0)} - ${item(1)}\thave: $myState"))
     val customerOrdersData = customerItems.map(orderData =>  (orderData(0), cookBookKey(orderData(0))))/*.filter {
@@ -444,9 +463,9 @@ object Player extends App {
     Console.err.println(s"want to cook: ${properOrder._1}\tkey: ${properOrder._2} have: $myState")
     val recipe = cookBook.getOrElse(properOrder._2, Map.empty[String, String])
     Console.err.println(s"recipe is empty: ${recipe.isEmpty}\tmyState: $myState")
-    getTargetFromGameField(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetMap, recipe, customerOrdersData) match {
+    getTargetFromGameField(myState: String, customerItems: List[Array[String]], cookBook: Recipe, targetStaticMap, targetMap, recipe, customerOrdersData) match {
       case Some(dish) => getTargetToReadyDish(player, myState, dish, targetMap)
-      case None => /*if (myState == "NONE") getProduct() else */getTargetFromRecipeBook(recipe, targetMap, myState)
+      case None => getTargetFromRecipeBook(recipe, targetMap, myState)
     }
   }
 
