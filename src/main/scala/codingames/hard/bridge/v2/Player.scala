@@ -1,9 +1,4 @@
-// package codingames.hard.bridge
-
-import math._
-import scala.util._
-
-// x,y — location, s — speed which the node has been attained
+package codingames.hard.bridge.v2
 
 object Player extends App {
   type Point = (Int, Int)
@@ -19,96 +14,88 @@ object Player extends App {
   val l2 = readLine
   val l3 = readLine
 
-  val commands = Map("SPEED" -> ((x: Int, y: Int, s: Int) => {
-    (x + s, y, s + 1, (x to s).map((_, y)).toList)
+  def commands = Map("SPEED" -> ((x: Int, y: Int, s: Int) => {
+    (x + s + 1, y, s + 1, (x to x + s + 1).map((_, y)).toList)
   }), "SLOW" -> ((x: Int, y: Int, s: Int) => {
-    (x + s, y, s - 1, (x to s).map((_, y)).toList)
+    (x + s - 1, y, s - 1, (x until x + s).map((_, y)).toList)
   }), "JUMP" -> ((x: Int, y: Int, s: Int) => {
-    (x + s, y, s - 1, List((x, y), (x + s, y)))
+    (x + s, y, s, List((x, y), (x + s, y)))
   }), "WAIT" -> ((x: Int, y: Int, s: Int) => {
-    (x + s, y, s, (x to s).map((_, y)).toList)
+    (x + s, y, s, (x to x + s).map((_, y)).toList)
   }), "UP" -> ((x: Int, y: Int, s: Int) => {
-    (x + s, y - 1, s, ((x until s).map((_, y)) :: (x + 1 to s).map((_, y - 1)) :: Nil).flatten)
+    (x + s, y - 1, s, ((x until x + s).map((_, y)) :: (x + 1 to x + s).map((_, y - 1)) :: Nil).flatten)
   }), "DOWN" -> ((x: Int, y: Int, s: Int) => {
-    (x + s, y + 1, s, ((x until s).map((_, y)) :: (x + 1 to s).map((_, y + 1)) :: Nil).flatten)
+    (x + s, y + 1, s, ((x until x + s).map((_, y)) :: (x + 1 to x + s).map((_, y + 1)) :: Nil).flatten)
   }))
 
   val lines = Array(l0, l1, l2, l3)
+
+  val roadLength = lines(0).length
+
   var motolines = lines.map(_.toCharArray)
   Console.err.println(s"the amount of motorbikes to control: $m")
   Console.err.println(s"the minimum amount of motorbikes that must survive: $v")
 
   def printLines(lines: Array[Array[Char]]) = lines.foreach(line => Console.err.println(s"lanes of the road: ${line.mkString("", "", "")}"))
 
-  var c = 0
+  var step = 0
 
-
-  val order = Map("NONE" -> "SPEED", "SPEED" -> "JUMP", "JUMP" -> "WAIT", "WAIT" -> "UP", "UP" -> "DOWN", "DOWN" -> "SLOW", "SLOW" -> "EMPTY")
-  val order2 = Map(0 -> "SPEED", 1 -> "JUMP", 2 -> "WAIT", 3 -> "UP", 4 -> "DOWN", 5 -> "SLOW", 6-> "EMPTY")
+  val order = Map(0 -> "SPEED", 1 -> "JUMP", 2 -> "WAIT", 3 -> "UP", 4 -> "DOWN", 5 -> "SLOW")
 
 
   def put(stack: List[PathData], e: PathData) = {
     e :: stack
   }
 
-  def newXYS(stack: List[PathData], e: Int) = {
-    val (c, (x,y,s)) = stack.head
-    commands(order2(e))(x, y, s)
+  def newXYS(stack: List[PathData]) = {
+    val (c, (x, y, s)) = stack.head
+    commands(order(c))(x, y, s)
   }
 
-  def isActive(steps: Int) = steps < 5
+  def isActive(stack: List[PathData]) = stack.size < 50 && stack.head._2._1 < roadLength
 
-  def can(data: MotoData): Boolean = {
-    true
-  }
+  def can(data: MotoData) = data._4.forall(xy => {
+      val (sym, line) = xy
+      line >= 0 && line < 4 &&
+        sym >= 0 && (if (sym < roadLength) lines(line)(sym) == '.' else true)
+    })
 
-  def calc = {
-    var command = 0
-    var newStack = List.empty[PathData]
+  def update(stack: List[PathData]) = {
+    var stackHead = stack.head
+    var outStack = stack.tail
+    var command = stackHead._1 + 1
 
-    while (isActive(newStack.size)) {
-      val (newX, newY, newS, points) = newXYS(newStack, command)
-      if (can((newX, newY, newS, points))) {
-        newStack = put(newStack, (command, (newX, newY, newS)))
-      } else {
-        if (command == 5) {
-          command = newStack.head._1 + 1
-          newStack = newStack.tail
-        } else {
-          command = command + 1
-        }
-      }
+    while (command > 5) {
+      stackHead = outStack.head
+      outStack = outStack.tail
+      command = stackHead._1 + 1
     }
-    newStack
+    (command, stackHead._2) :: outStack
   }
 
+  def calc(initX: Int, initY: Int, initS: Int) = {
+    var stack = (0, (initX, initY, initS)) :: Nil
+    do {
+      val (newX, newY, newS, points) = newXYS(stack)
+      stack = if (can((newX, newY, newS, points))) put(stack, (0, (newX, newY, newS))) else update(stack)
+    } while (isActive(stack))
+    stack.tail
+  }.reverse
 
+  var instructions: List[PathData] = List.empty
 
-
-  // game loop
   while (true) {
-    c = c + 1
     val s = readInt // the motorbikes' speed
-    Console.err.println(s"speed=$s")
     for (i <- 0 until m) {
-      // x: x coordinate of the motorbike
-      // y: y coordinate of the motorbike
-      // a: indicates whether the motorbike is activated "1" or detroyed "0"
       val Array(x, y, a) = for (j <- readLine split " ") yield j.toInt
-      Console.err.println(s"x[$i]=$x\ty[$i]=$y\ta[$i]=$a")
+      if (step == 0) instructions = calc(x, y, s)
       if (x < motolines(y).length) motolines(y)(x) = '*'
     }
     printLines(motolines)
 
-
-    // Write an action using println
-    // To debug: Console.err.println("Debug messages...")
-
-
-    // A single line containing one of 6 keywords: SPEED, SLOW, JUMP, WAIT, UP, DOWN.
-    val action = if (c == 5) "JUMP" else if (c > 5) "WAIT" else "SPEED"
+    val action = order(instructions(step)._1)
+    step = step + 1
     println(action)
-//    println("UP")
     motolines = lines.map(_.toCharArray)
   }
 }

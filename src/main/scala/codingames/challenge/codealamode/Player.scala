@@ -1,4 +1,4 @@
-//package codingames.challenge.codealamode
+package codingames.challenge.codealamode
 
 object Player extends App {
 //  case class Recipe (ingr: List[Map[String, Int]], f: List[Map[String, Int]] => List[Map[String, Int]])
