@@ -1,7 +1,6 @@
 package codingame.hard.bridge.v2
 
 import codingames.hard.bridge.v2.Player
-import codingames.hard.bridge.v2.Player.{MotoData, Point}
 import org.scalatest.FlatSpec
 
 class PlayerTests extends FlatSpec {

@@ -1,4 +1,4 @@
-//package codingames.hard.bridge.v2
+package codingames.hard.bridge.v2
 
 object Player extends App {
   type Point = Array[Int]
@@ -59,7 +59,7 @@ object Player extends App {
     var outStack = stack.tail
     var command = stackHead._1 + 1
 
-    while (command > order.size) {
+    while (command > order.keys.max) {
       if (outStack.isEmpty) return outStack // can't find a way
       stackHead = outStack.head
       outStack = outStack.tail
