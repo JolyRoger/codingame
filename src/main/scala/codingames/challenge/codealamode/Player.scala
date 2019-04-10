@@ -587,7 +587,11 @@ object Player extends App {
     }
     // ovencontents: ignore until wood 1 league
     val Array(ovencontents, _oventimer) = readLine split " "
-    dynamicMap = addToMap(dynamicMap, ovencontents, searchSym(graphMatrix, 'O').get)
+//    dynamicMap = addToMap(dynamicMap, ovencontents, searchSym(graphMatrix, 'O').get)
+    dynamicMap = searchSym(graphMatrix, 'O') match {
+      case Some(oven) => addToMap(dynamicMap, ovencontents, oven)
+      case None => dynamicMap
+    }
 //    dynamicMap.foreach(d => Console.err.println(s"Dynamic map content: ${d._1} -> ${d._2}"))
     val oventimer = _oventimer.toInt
 //   Console.err.println(s"ovencontents: $ovencontents, oventimer: $oventimer")
