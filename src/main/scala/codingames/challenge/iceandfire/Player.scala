@@ -8,45 +8,177 @@ import scala.util._
   * the standard input according to the problem statement.
   **/
 object Player extends App {
+//------------------------------------------VARIABLES-------------------------------------------------------------------
+  val condition = true
+  val isDebug = false
+  val output = true
+  var step = 0
+  val limit = 1
+  val isTest = false
 
-  def printBoard(board: Array[String]) = board.foreach(Console.err.println)
+  //------------------------------------------CLASSES---------------------------------------------------------------------
 
-  val numberminespots = readInt
-  Console.err.println(s"numberminespots=$numberminespots")
+  case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {                                                        // World class
+    var buildingcount = 0
+    var unitcount = 0
+    var board = Array.empty[String]
+    var boardMatrix: Array[Array[Char]] = Array.empty
+    def closest(x: Int, y: Int, sym: Char *) = {
+      val candidates = List((x-1, y), (x, y-1), (x+1, y), (x, y+1))
+      val squares = candidates.filter(square =>
+        square._1 >=0 &&
+          square._2 >=0 &&
+          square._1 < 12 &&
+          square._2 < 12 &&
+          sym.contains(boardMatrix(square._1)(square._2)))
+      if (squares.isEmpty) None else Some(squares)
+    }
+    def printBoard = board.foreach(Console.err.println)
+    def print = {
+      Console.err.println(s"numMineSpots=$numMineSpots")
+      mineSpotsData.foreach(ms => Console.err.println(s"\t${ms(0)} ${ms(1)}"))
+      Console.err.println(s"buildingcount=$buildingcount")
+      Console.err.println(s"unitcount=$unitcount")
+      printBoard
+    }
+  }
+  case class Unit(id: Int, var level: Int, var x: Int, var y: Int)
+  case class Building(btype: Int, x: Int, y: Int)
 
-  for (i <- 0 until numberminespots) {
-    val Array(x, y) = for (i <- readLine split " ") yield i.toInt
-    Console.err.println(s"\t($x,$y)")
+  sealed abstract class Army {
+    var gold = 0
+    var income = 0
+    var buildings = List.empty[Building]
+    var units = List.empty[Unit]
+    val headquarters: (Int, Int)
+    override def toString: String =
+      s"gold/income = [$gold/$income]" +
+        buildings.mkString("\nbuildings: ", ", ", "") +
+        units.mkString("\nunits: ", ", ", "")
+    def print = Console.err.println(toString)
   }
 
+  class Me extends Army {                                                                                                       // Me class
+    override lazy val headquarters: (Int, Int) = (buildings.head.x, buildings.head.y)
+    private var hqClosest: Option[List[(Int, Int)]] = None
+    private var trainLevel: Int = 0
+
+    def trainCondition= units.isEmpty ||
+      (gold > 50 && world.closest(headquarters._1, headquarters._2, '.').isDefined)
+
+    def nextAction = if (trainCondition) {
+      val hqc = hqClosest.get.head
+      Train(trainLevel, hqc._1, hqc._2)
+    } else {
+      //      val unitsMove = me.units.map(unit => me.closest(unit).orElse())
+      val enemyHQ = enemy.headquarters
+      Move(1, enemyHQ._1, enemyHQ._2)
+    }
+
+    override def toString: String = "ME-------------------------------------------------------------\n" + super.toString
+
+    def closest(unit: Unit) = world.closest(unit.x, unit.y, '.')
+
+    def update = {
+      hqClosest = world.closest(headquarters._1, headquarters._2, '.')
+      trainLevel = if (gold < 50) 1 else 3
+    }
+  }
+
+  class Enemy extends Army {
+    //    override lazy val headquarters: (Int, Int) = searchSym(world.board, 'X').get
+    override lazy val headquarters: (Int, Int) = (buildings.head.x, buildings.head.y)
+    override def toString: String = "ENEMY----------------------------------------------------------\n" + super.toString
+  }
+
+  sealed abstract class Action {
+    //    var x: Int = -1
+    //    var y: Int = -1
+    def str: String
+    /*def withXY(x: Int, y: Int) = {
+      this.x = x
+      this.y = y
+      this
+    }*/
+  }
+  case class Wait(message: String) extends Action {
+    override def str: String = s"WAIT; MSG $message"
+  }
+  case class Train(level: Int, x: Int, y: Int) extends Action {
+    override def str: String = s"TRAIN $level $x $y"
+  }
+  case class Move(id: Int, x: Int, y: Int) extends Action {
+    override def str: String = s"MOVE $id $x $y"
+  }
+
+  //------------------------------------------FUNCTIONS-------------------------------------------------------------------
+
+  def searchSym(matrix: Array[String], sym: Char) = {
+    val coords = for (row <- matrix.indices; col <- matrix(row).indices; _sym = matrix(row)(col); if _sym == sym) yield (col, row)
+    if (coords.nonEmpty) Some(coords(0)) else None
+  }
+
+  //------------------------------------------ENTERS----------------------------------------------------------------------
+  val numberminespots = readInt
+
+  val world = World(numberminespots, (for (i <- 0 until numberminespots) yield {
+    for (i <- readLine split " ") yield i.toInt
+  }).toList)
+
+  val me = new Me
+  val enemy = new Enemy
+
   // game loop
-  while (true) {
+  while (if (isTest) step < limit else true) {
+
     val gold = readInt
-    Console.err.println(s"")
+    me.gold = gold
     val income = readInt
-    Console.err.println(s"my gold/income = [$gold/$income]")
+    me.income = income
     val opponentgold = readInt
+    enemy.gold = opponentgold
     val opponentincome = readInt
-    Console.err.println(s"opponent gold/income = [$opponentgold/$opponentincome]")
-    val board = (for (i <- 0 until 12) yield readLine).toArray
-    printBoard(board)
+    enemy.income = opponentincome
+    world.board = (for (i <- 0 until 12) yield readLine).toArray
+    world.boardMatrix = world.board.map(_.toCharArray)
 
     val buildingcount = readInt
-    Console.err.println(s"buildingcount=$buildingcount")
+    world.buildingcount = buildingcount
+
+    me.buildings = List.empty
+    enemy.buildings = List.empty
+
     for (i <- 0 until buildingcount) {
       val Array(owner, buildingtype, x, y) = for (i <- readLine split " ") yield i.toInt
-      Console.err.println(s"\t[owner, type, x, y]: $owner $buildingtype ($x,$y)")
+      val player = if (owner == 0) me else enemy
+      player.buildings = Building(buildingtype, x, y) :: player.buildings
     }
+
+    me.units = List.empty
+    enemy.units = List.empty
+
     val unitcount = readInt
-    Console.err.println(s"unitcount=$unitcount")
+    world.unitcount = unitcount
     for (i <- 0 until unitcount) {
       val Array(owner, unitid, level, x, y) = for (i <- readLine split " ") yield i.toInt
-      Console.err.println(s"\t[owner, unitid, level, x, y]: $owner $unitid $level ($x,$y)")
+      val player = if (owner == 0) me else enemy
+      player.units = Unit(unitid, level, x, y) :: player.units
     }
 
-    // Write an action using println
-    // To debug: Console.err.println("Debug messages...")
+    me.update
 
-    println("WAIT")
+    //------------------------------------------ACTIONS---------------------------------------------------------------------
+
+    if (output) {
+      world.print
+      me.print
+      enemy.print
+    }
+
+    val action = if (isDebug) Wait("Test") else me.nextAction
+
+
+    step += 1
+    println(s"${action.str}")
   }
 }
