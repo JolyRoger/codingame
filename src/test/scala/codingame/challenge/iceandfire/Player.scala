@@ -12,11 +12,12 @@ import scala.util._
   **/
 object Player extends App {
 //------------------------------------------VARIABLES-------------------------------------------------------------------
-  val limit = 1
+  val limit = 2
   var step = 0
   val isTest = true
   val isDebug = false
   val output = true
+  val outputLikeInput = false
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
   val filename = "iceandfire0.txt"
   val bufferedSource = Source.fromFile(filename)
@@ -25,22 +26,25 @@ object Player extends App {
   def readInt = if (data.hasNext) data.next.toInt else -1
   def readLine = if (data.hasNext) data.next else "\0"
 
-  //------------------------------------------CLASSES---------------------------------------------------------------------
+//------------------------------------------CLASSES---------------------------------------------------------------------
 
   case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {                                                        // World class
     var buildingcount = 0
     var unitcount = 0
     var board = Array.empty[String]
     var boardMatrix: Array[Array[Char]] = Array.empty
-    def closest(x: Int, y: Int, sym: Char *) = {
+    def closestWithoutUnits(x: Int, y: Int, units: List[Unit], sym: List[Char]) =
+      closest(x, y, sym).filterNot(
+        point => units.exists(
+          unit => unit.x == point._1 && unit.y == point._2))
+    def closest(x: Int, y: Int, sym: List[Char]) = {
       val candidates = List((x-1, y), (x, y-1), (x+1, y), (x, y+1))
-      val squares = candidates.filter(square =>
-        square._1 >=0 &&
-          square._2 >=0 &&
-          square._1 < 12 &&
-          square._2 < 12 &&
-          sym.contains(boardMatrix(square._1)(square._2)))
-      if (squares.isEmpty) None else Some(squares)
+      candidates.filter(square =>
+        square._1 >= 0 &&
+        square._2 >= 0 &&
+        square._1 < 12 &&
+        square._2 < 12 &&
+        sym.contains(boardMatrix(square._2)(square._1)))
     }
     def printBoard = board.foreach(Console.err.println)
     def print = {
@@ -68,19 +72,30 @@ object Player extends App {
   }
 
   class Me extends Army {                                                                                                       // Me class
-    //    override lazy val headquarters: (Int, Int) = searchSym(world.board, 'O').get
     override lazy val headquarters: (Int, Int) = (buildings.head.x, buildings.head.y)
-    def trainCondition= units.isEmpty /*|| gold > 50*/
+    private var hqClosest: List[(Int, Int)] = List.empty
+    private var trainLevel: Int = 0
+
+    def trainCondition= units.isEmpty ||
+      (gold > 50 && hqClosest.nonEmpty)
+
     def nextAction = if (trainCondition) {
-      val firstMove = world.closest(me.headquarters._1, me.headquarters._2, '.').get.head
-      Train(1, firstMove._1, firstMove._2)
+      val hqc = hqClosest.head
+      Train(trainLevel, hqc._1, hqc._2)
     } else {
       //      val unitsMove = me.units.map(unit => me.closest(unit).orElse())
       val enemyHQ = enemy.headquarters
       Move(1, enemyHQ._1, enemyHQ._2)
     }
+
     override def toString: String = "ME-------------------------------------------------------------\n" + super.toString
-    def closest(unit: Unit) = world.closest(unit.x, unit.y, '.')
+
+    def closest(unit: Unit) = world.closest(unit.x, unit.y, List('.'))
+
+    def update = {
+      hqClosest = world.closestWithoutUnits(headquarters._1, headquarters._2, units, List('.', 'O'))
+      trainLevel = if (gold < 50) 1 else 2
+    }
   }
 
   class Enemy extends Army {
@@ -90,14 +105,7 @@ object Player extends App {
   }
 
   sealed abstract class Action {
-    //    var x: Int = -1
-    //    var y: Int = -1
     def str: String
-    /*def withXY(x: Int, y: Int) = {
-      this.x = x
-      this.y = y
-      this
-    }*/
   }
   case class Wait(message: String) extends Action {
     override def str: String = s"WAIT; MSG $message"
@@ -118,29 +126,39 @@ object Player extends App {
 
   //------------------------------------------ENTERS----------------------------------------------------------------------
   val numberminespots = readInt
-
-  val world = World(numberminespots, (for (i <- 0 until numberminespots) yield {
+  val nms = (for (i <- 0 until numberminespots) yield {
     for (i <- readLine split " ") yield i.toInt
-  }).toList)
+  }).toList
+
+  if (outputLikeInput) Console.err.println(s"$numberminespots")
+  if (outputLikeInput) nms.foreach(arr => Console.err.println(s"${arr(0)} ${arr(1)}"))
+
+  val world = World(numberminespots, nms)
+
 
   val me = new Me
   val enemy = new Enemy
 
   // game loop
   while (if (isTest) step < limit else true) {
-
     val gold = readInt
+    if (outputLikeInput) Console.err.println(s"$gold")
     me.gold = gold
     val income = readInt
+    if (outputLikeInput) Console.err.println(s"$income")
     me.income = income
     val opponentgold = readInt
+    if (outputLikeInput) Console.err.println(s"$opponentgold")
     enemy.gold = opponentgold
     val opponentincome = readInt
+    if (outputLikeInput) Console.err.println(s"$opponentincome")
     enemy.income = opponentincome
     world.board = (for (i <- 0 until 12) yield readLine).toArray
     world.boardMatrix = world.board.map(_.toCharArray)
+    if (outputLikeInput) world.printBoard
 
     val buildingcount = readInt
+    if (outputLikeInput) Console.err.println(s"$buildingcount")
     world.buildingcount = buildingcount
 
     me.buildings = List.empty
@@ -148,6 +166,7 @@ object Player extends App {
 
     for (i <- 0 until buildingcount) {
       val Array(owner, buildingtype, x, y) = for (i <- readLine split " ") yield i.toInt
+      if (outputLikeInput) Console.err.println(s"$owner $buildingtype $x $y")
       val player = if (owner == 0) me else enemy
       player.buildings = Building(buildingtype, x, y) :: player.buildings
     }
@@ -156,12 +175,15 @@ object Player extends App {
     enemy.units = List.empty
 
     val unitcount = readInt
+    if (outputLikeInput) Console.err.println(s"$unitcount")
     world.unitcount = unitcount
     for (i <- 0 until unitcount) {
       val Array(owner, unitid, level, x, y) = for (i <- readLine split " ") yield i.toInt
+      if (outputLikeInput) Console.err.println(s"$owner $unitid $level $x $y")
       val player = if (owner == 0) me else enemy
       player.units = Unit(unitid, level, x, y) :: player.units
     }
+    me.update
 
     //------------------------------------------ACTIONS---------------------------------------------------------------------
 
@@ -176,5 +198,6 @@ object Player extends App {
 
     step += 1
     println(s"${action.str}")
+    Console.err.println
   }
 }
