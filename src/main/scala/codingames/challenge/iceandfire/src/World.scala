@@ -10,13 +10,13 @@ case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {          
   var mySoldiers: List[Soldier] = List.empty
   var enemySoldiers: List[Soldier] = List.empty
 
-  def closestWithoutUnits(x: Int, y: Int, soldiers: List[army.Soldier], sym: List[Char]) = {
+  def closestWithoutUnits(x: Int, y: Int, soldiers: List[Soldier], sym: List[Char]) = {
     closest(x, y, sym).filterNot(
       point => soldiers.exists(
         unit => unit.x == point._1 && unit.y == point._2))
   }
 
-  def closestWithUnits(x: Int, y: Int, units: List[army.Soldier], sym: List[Char]) =
+  def closestWithUnits(x: Int, y: Int, units: List[Soldier], sym: List[Char]) =
     closest(x, y, sym).withFilter(
       point => units.exists(unit => unit.x == point._1 && unit.y == point._2)
     ).map(point => (point, units.find(unit => unit.x == point._1 && unit.y == point._2).get))

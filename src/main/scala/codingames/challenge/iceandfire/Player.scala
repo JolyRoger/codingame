@@ -1,6 +1,6 @@
 //package codingames.challenge.iceandfire
 
-import codingames.challenge.iceandfire.src.army.{Enemy, Me, Guardian}
+import codingames.challenge.iceandfire.src.army.{Enemy, Guardian, Me}
 import codingames.challenge.iceandfire.src.{Building, Wait, World}
 
 import math._
@@ -11,6 +11,7 @@ import scala.util._
   * the standard input according to the problem statement.
   **/
 object Player extends App {
+
 //------------------------------------------VARIABLES-------------------------------------------------------------------
   val condition = true
   val isDebug = false
@@ -20,9 +21,11 @@ object Player extends App {
   val limit = 1
   val isTest = false
 
+  var unitidRole = Map.empty[Int, String]
+
 //------------------------------------------CLASSES---------------------------------------------------------------------
   ///World.scala
-  ///Unit.scala
+  ///Soldier.scala
   ///Guardian.scala
   ///Building.scala
   ///Army.scala
@@ -46,7 +49,6 @@ object Player extends App {
   if (outputLikeInput) nms.foreach(arr => Console.err.println(s"${arr(0)} ${arr(1)}"))
 
   val world = World(numberminespots, nms)
-
 
   val enemy = new Enemy
   val me = new Me(world, enemy)
@@ -93,7 +95,8 @@ object Player extends App {
       val Array(owner, unitid, level, x, y) = for (i <- readLine split " ") yield i.toInt
       if (outputLikeInput) Console.err.println(s"$owner $unitid $level $x $y")
       val player = if (owner == 0) me else enemy
-      player.units = new Guardian(unitid, level, world, x, y, me.headquarters) :: player.units                          // FIXME
+      player.units = me.born(unitidRole.getOrElse(unitid, "Conqueror"),
+        unitid, level, world, x, y, me.headquarters) :: player.units                          // FIXME
     }
 
     me.update(world)

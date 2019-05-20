@@ -2,7 +2,15 @@ package codingames.challenge.iceandfire.src.army
 
 import codingames.challenge.iceandfire.src.{Move, Train, World}
 
-class Me(world: World, enemy: Enemy) extends Army {                                                                                                       // Me class
+class Me(world: World, enemy: Enemy) extends Army {
+  def born(role: String, unitid: Int, level: Int, world: World, x: Int, y: Int, headquarters: (Int, Int)) = {
+    role match {
+      case "Guardian" => new Guardian(unitid, level, world, x, y, headquarters)
+      case _ => new Guardian(unitid, level, world, x, y, headquarters)
+    }
+  }
+
+  // Me class
   override lazy val headquarters: (Int, Int) = (buildings.head.x, buildings.head.y)
   private var hqClosest: List[(Int, Int)] = List.empty
   private var trainLevel: Int = 0
