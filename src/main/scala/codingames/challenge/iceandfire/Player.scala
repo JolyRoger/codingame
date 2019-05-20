@@ -1,32 +1,27 @@
 //package codingames.challenge.iceandfire
 
-import codingames.challenge.iceandfire.src.army.{Enemy, Guardian, Me}
+import codingames.challenge.iceandfire.src.army.{Enemy, Me, Soldier}
 import codingames.challenge.iceandfire.src.{Building, Wait, World}
 
-import math._
-import scala.util._
-
-/**
-  * Auto-generated code below aims at helping you parse
-  * the standard input according to the problem statement.
-  **/
 object Player extends App {
 
 //------------------------------------------VARIABLES-------------------------------------------------------------------
   val condition = true
   val isDebug = false
   val output = false
-  val outputLikeInput = false
+  val outputLikeInput = true
   var step = 0
   val limit = 1
   val isTest = false
 
-  var unitidRole = Map.empty[Int, String]
+
 
 //------------------------------------------CLASSES---------------------------------------------------------------------
   ///World.scala
   ///Soldier.scala
   ///Guardian.scala
+  ///Scout.scala
+  ///Conqueror.scala
   ///Building.scala
   ///Army.scala
   ///Me.scala
@@ -94,9 +89,8 @@ object Player extends App {
     for (i <- 0 until unitcount) {
       val Array(owner, unitid, level, x, y) = for (i <- readLine split " ") yield i.toInt
       if (outputLikeInput) Console.err.println(s"$owner $unitid $level $x $y")
-      val player = if (owner == 0) me else enemy
-      player.units = me.born(unitidRole.getOrElse(unitid, "Conqueror"),
-        unitid, level, world, x, y, me.headquarters) :: player.units                          // FIXME
+      if (owner == 0) me.units = me.born(unitid, level, world, x, y) :: me.units
+      else enemy.units = Soldier(unitid, level, world, x, y) :: enemy.units
     }
 
     me.update(world)

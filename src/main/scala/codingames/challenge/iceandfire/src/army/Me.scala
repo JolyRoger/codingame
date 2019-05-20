@@ -1,41 +1,48 @@
 package codingames.challenge.iceandfire.src.army
 
-import codingames.challenge.iceandfire.src.{Move, Train, World}
+import codingames.challenge.iceandfire.src.{Action, Move, Train, World}
 
 class Me(world: World, enemy: Enemy) extends Army {
-  def born(role: String, unitid: Int, level: Int, world: World, x: Int, y: Int, headquarters: (Int, Int)) = {
-    role match {
+  def born(unitid: Int, level: Int, world: World, x: Int, y: Int): Soldier = {
+    unitidRole.getOrElse(unitid, "Unknown") match {
       case "Guardian" => new Guardian(unitid, level, world, x, y, headquarters)
-      case _ => new Guardian(unitid, level, world, x, y, headquarters)
+      case "Conqueror" => new Conqueror(unitid, level, world, x, y)
+      case "Scout" => new Scout(unitid, level, world, x, y, enemyHeadquarters)
+      case "Unknown" =>
+        unitidRole += (unitid -> lastCreated)
+        born(unitid, level, world, x, y)
     }
   }
 
-  // Me class
+  var lastCreated: String = ""
+
+  var unitidRole = Map.empty[Int, String]
+  lazy val enemyHeadquarters: (Int, Int) = (enemy.buildings.head.x, enemy.buildings.head.y)
   override lazy val headquarters: (Int, Int) = (buildings.head.x, buildings.head.y)
-  private var hqClosest: List[(Int, Int)] = List.empty
-  private var trainLevel: Int = 0
+  var hqClosest: List[(Int, Int)] = List.empty
+  var trainLevel: Int = 0
 
-  def checkForUnitCanHitEnemy(units: List[Soldier]) = {
-    units.map(unit => {
-      val listNeighbourEnemyUnits = world.closestWithUnits(unit.x, unit.y, enemy.units, List('X'))
-      (unit, listNeighbourEnemyUnits)
-    }).filter(_._2.nonEmpty).toMap
-  }
-  def trainCondition= units.isEmpty ||
-    (gold > 50 && hqClosest.nonEmpty)
+  def trainCondition = units.isEmpty ||
+                               (gold > 30 && income > 5) ||
+                                units.size < 10
 
-  def nextAction(enemy: Enemy) = {
-    if (trainCondition) {
-      val hqc = hqClosest.head
-      Train(trainLevel, hqc._1, hqc._2)
-    } else {
-      val unitsCanHitEnemy = checkForUnitCanHitEnemy(units)
-//      if (unitsCanHitEnemy.nonEmpty)
-      //      val unitsMove = me.units.map(unit => me.closest(unit).orElse())
-      val enemyHQ = enemy.headquarters
-      Move(1, enemyHQ._1, enemyHQ._2)
+  def hqcClosest = world.closestWithoutUnits(headquarters._1, headquarters._2, units, List('.', 'O'))
+
+  def getTrain = if (units.isEmpty) {
+    val hqc = hqcClosest.head
+    lastCreated = "Scout"
+    Some(Train(1, hqc._1, hqc._2))
+  } else if (gold > 50 && hqClosest.nonEmpty && unitidRole.values.toList.count(_ == "Guardian") < 2) {
+    val hqc = hqcClosest.head
+    lastCreated = "Guardian"
+    Some(Train(2, hqc._1, hqc._2))
+  } else None
+
+  def nextAction(enemy: Enemy): Action =
+    getTrain match {
+      case Some(train) => train
+      case None => Move(this)
     }
-  }
 
   override def toString: String = "ME-------------------------------------------------------------\n" + super.toString
 
