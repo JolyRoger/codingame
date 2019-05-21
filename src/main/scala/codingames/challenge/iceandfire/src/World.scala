@@ -1,8 +1,11 @@
 package codingames.challenge.iceandfire.src
 
-import codingames.challenge.iceandfire.src.army.Soldier
+import codingames.challenge.iceandfire.src.army.{Enemy, Me, Soldier}
 
-case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {                                                        // World class
+case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {
+//  def turnTo(id: Int, str: String) =
+
+  // World class
   var buildingcount = 0
   var unitcount = 0
   var board = Array.empty[String]
@@ -31,7 +34,9 @@ case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {          
         sym.contains(boardMatrix(square._2)(square._1)))
   }
   def closestEmpty(x: Int, y: Int) = closest(x, y, List('.'))
-  def closestFree(x: Int, y: Int) = closestWithoutUnits(x, y, mySoldiers ++ enemySoldiers, List('.', 'O'))
+  def closestFree(x: Int, y: Int) = closestWithoutUnits(x, y, mySoldiers, List('.', 'O'))
+  def allFree(x: Int, y: Int) = (for (i <- 0 until 12; j <- 0 until 12; if boardMatrix(i)(j) == '.') yield (j, i)).toList
+
   def closestEnemy(x: Int, y: Int) = closest(x, y, List('X'))
   def closestEnemySoldiers(x: Int, y: Int) = closestWithUnits(x, y, enemySoldiers, List('X'))
 

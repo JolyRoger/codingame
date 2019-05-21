@@ -14,5 +14,5 @@ case class Train(level: Int, x: Int, y: Int) extends Action {
 case class Move(me: Me) extends Action {
   val unitsMoves = me.units.map(_.move)
 
-  override def str: String = unitsMoves.map(m => s" MOVE ${m._1} ${m._2} ${m._3};").reduce(_ + _)
+  override def str: String = unitsMoves.map(m => s" MOVE ${m.get._1} ${m.get._2} ${m.get._3};").reduce(_ + _)
 }

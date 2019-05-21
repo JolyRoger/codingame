@@ -3,11 +3,12 @@ package codingames.challenge.iceandfire.src.army
 import codingames.challenge.iceandfire.src.{Action, Move, Train, World}
 
 class Me(world: World, enemy: Enemy) extends Army {
+  def turnTo(id: Int, newRole: String) = unitidRole += (id -> newRole)
   def born(unitid: Int, level: Int, world: World, x: Int, y: Int): Soldier = {
     unitidRole.getOrElse(unitid, "Unknown") match {
-      case "Guardian" => new Guardian(unitid, level, world, x, y, headquarters)
-      case "Conqueror" => new Conqueror(unitid, level, world, x, y)
-      case "Scout" => new Scout(unitid, level, world, x, y, enemyHeadquarters)
+      case "Guardian" => new Guardian(unitid, level, world, x, y, this)
+      case "Conqueror" => new Conqueror(unitid, level, world, x, y, this)
+      case "Scout" => new Scout(unitid, level, world, x, y, this)
       case "Unknown" =>
         unitidRole += (unitid -> lastCreated)
         born(unitid, level, world, x, y)
@@ -30,7 +31,7 @@ class Me(world: World, enemy: Enemy) extends Army {
 
   def getTrain = if (units.isEmpty) {
     val hqc = hqcClosest.head
-    lastCreated = "Scout"
+    lastCreated = "Conqueror"
     Some(Train(1, hqc._1, hqc._2))
   } else if (gold > 50 && hqClosest.nonEmpty && unitidRole.values.toList.count(_ == "Guardian") < 2) {
     val hqc = hqcClosest.head
