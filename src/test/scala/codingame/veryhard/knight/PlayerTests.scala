@@ -1,7 +1,5 @@
 package codingame.veryhard.knight
 
-import codingames.veryhard.knight.Player
-import codingames.veryhard.knight.Player.{h, x, y}
 import org.scalatest.FlatSpec
 
 class SolutionTests extends FlatSpec {

@@ -1,5 +1,6 @@
 //package codingames.challenge.iceandfire
 
+import scala.math.{pow, sqrt}
 
 object Player extends App {
 
@@ -7,7 +8,7 @@ object Player extends App {
   val condition = true
   val isDebug = false
   val output = false
-  val outputLikeInput = true
+  val outputLikeInput = false
   var step = 0
   val limit = 1
   val isTest = false
@@ -16,6 +17,8 @@ object Player extends App {
 
 //------------------------------------------CLASSES---------------------------------------------------------------------
 
+
+import scala.math.{pow, sqrt}
 
 case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {
 //  def turnTo(id: Int, str: String) =
@@ -28,32 +31,38 @@ case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {
   var mySoldiers: List[Soldier] = List.empty
   var enemySoldiers: List[Soldier] = List.empty
 
-  def closestWithoutUnits(x: Int, y: Int, soldiers: List[Soldier], sym: List[Char]) = {
-    closest(x, y, sym).filterNot(
-      point => soldiers.exists(
-        unit => unit.x == point._1 && unit.y == point._2))
-  }
+  def closestEuclidean(p: (Int, Int), items: List[(Int, Int)]) = if (items.isEmpty) (p._1, p._2) else items.minBy(item => euclidean(p, item))
+  def euclidean(a: (Int, Int), b: (Int, Int)) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
 
+  def closestWithoutUnits(x: Int, y: Int, soldiers: List[Soldier], sym: List[Char]) = closest(x, y, sym).filterNot(point => soldiers.exists(unit => unit.x == point._1 && unit.y == point._2))
   def closestWithUnits(x: Int, y: Int, units: List[Soldier], sym: List[Char]) =
     closest(x, y, sym).withFilter(
       point => units.exists(unit => unit.x == point._1 && unit.y == point._2)
     ).map(point => (point, units.find(unit => unit.x == point._1 && unit.y == point._2).get))
 
-  def closest(x: Int, y: Int, sym: List[Char]) = {
-    val candidates = List((x-1, y), (x, y-1), (x+1, y), (x, y+1))
-    candidates.filter(square =>
-      square._1 >= 0 &&
-        square._2 >= 0 &&
-        square._1 < 12 &&
-        square._2 < 12 &&
-        sym.contains(boardMatrix(square._2)(square._1)))
-  }
+  def closest(x: Int, y: Int, sym: List[Char]) = List((x-1, y), (x, y-1), (x+1, y), (x, y+1)).filter(
+    square => square._1 >= 0 && square._2 >= 0 && square._1 < 12 && square._2 < 12 &&
+      sym.contains(boardMatrix(square._2)(square._1)))
   def closestEmpty(x: Int, y: Int) = closest(x, y, List('.'))
+  def closestForConqueror(x: Int, y: Int) = closestWithoutUnits(x, y, enemySoldiers, List('.', 'X'))
   def closestFree(x: Int, y: Int) = closestWithoutUnits(x, y, mySoldiers, List('.', 'O'))
-  def allFree(x: Int, y: Int) = (for (i <- 0 until 12; j <- 0 until 12; if boardMatrix(j)(i) == '.') yield (j, i)).toList
-
   def closestEnemy(x: Int, y: Int) = closest(x, y, List('X'))
   def closestEnemySoldiers(x: Int, y: Int) = closestWithUnits(x, y, enemySoldiers, List('X'))
+
+  def containsMyUnit(x: Int, y: Int) = mySoldiers.exists(soldier => soldier.x == x && soldier.y == y)
+  def doesNotContainMyUnit(x: Int, y: Int) = !mySoldiers.exists(soldier => soldier.x == x && soldier.y == y)
+  def containsEnemyUnit(x: Int, y: Int) = enemySoldiers.exists(soldier => soldier.x == x && soldier.y == y)
+  def doesNotContainEnemyUnit(x: Int, y: Int) = !enemySoldiers.exists(soldier => soldier.x == x && soldier.y == y)
+
+  def adjTo(x: Int, y: Int, sym: Char) = closest(x, y, List(sym)).nonEmpty
+  def myClosestTo(p: (Int, Int)) = closestEuclidean(p, allWith(List('.', 'O'), (x, y) => {
+    doesNotContainMyUnit(x, y) && adjTo(x, y, 'O')
+  }))
+  def all(x: Int, y: Int, sym: List[Char]) = (for (i <- 0 until 12; j <- 0 until 12; if sym.contains(boardMatrix(i)(j))) yield (j, i)).toList
+  def allWith(sym: List[Char], filter: (Int, Int) => Boolean) = (for (i <- 0 until 12; j <- 0 until 12; if sym.contains(boardMatrix(i)(j)) && filter(j, i)) yield (j, i)).toList
+  def allFree = allWith(List('.', 'O'), doesNotContainMyUnit)
+  def allConquerorTarget = allWith(List('.', 'X'), doesNotContainEnemyUnit)
+  def freeToMove(x: Int, y: Int) = (for (i <- 0 until 12; j <- 0 until 12; if boardMatrix(j)(i) == '.' || (boardMatrix(j)(i) == 'X' && !enemySoldiers.exists(soldier => i == soldier.x && j == soldier.y) )) yield (j, i)).toList
 
   def printBoard = board.foreach(Console.err.println)
   def print = {
@@ -64,7 +73,6 @@ case class World(numMineSpots: Int, mineSpotsData: List[Array[Int]]) {
     printBoard
   }
 }
-
 
 
 case class Soldier(id: Int, var level: Int, world: World, x: Int, y: Int) {
@@ -81,6 +89,8 @@ case class Soldier(id: Int, var level: Int, world: World, x: Int, y: Int) {
 
 
 class Guardian(id: Int, level: Int, world: World, x: Int, y: Int, me: Me) extends Soldier(id, level, world, x, y) {
+  override def move = Some((id, x, y))
+/*
   override def move = super.move match {
     case None =>
       val hqFree = world.closestFree(me.headquarters._1, me.headquarters._2)
@@ -91,6 +101,7 @@ class Guardian(id: Int, level: Int, world: World, x: Int, y: Int, me: Me) extend
       }
     case Some(m) => Some(m)
   }
+*/
 }
 
 
@@ -105,8 +116,8 @@ class Scout(id: Int, level: Int, world: World, x: Int, y: Int, me: Me) extends S
 class Conqueror(id: Int, level: Int, world: World, x: Int, y: Int, me: Me) extends Soldier(id, level, world, x, y) {
   override def move = super.move match {
     case None =>
-      val goal = world.allFree(x, y).headOption.getOrElse((me.enemyHeadquarters._1, me.enemyHeadquarters._2))
-      Some((id, goal._2, goal._1))
+      val goal = world.closestForConqueror(x, y).headOption.getOrElse((me.enemyHeadquarters._1, me.enemyHeadquarters._2))
+      Some((id, goal._1, goal._2))
     case Some(m) => Some(m)
   }
 }
@@ -147,7 +158,6 @@ class Me(world: World, enemy: Enemy) extends Army {
   lazy val enemyHeadquarters: (Int, Int) = (enemy.buildings.head.x, enemy.buildings.head.y)
   override lazy val headquarters: (Int, Int) = (buildings.head.x, buildings.head.y)
   var hqClosest: List[(Int, Int)] = List.empty
-  var trainLevel: Int = 0
 
   def trainCondition = units.isEmpty ||
                                (gold > 30 && income > 5) ||
@@ -155,21 +165,33 @@ class Me(world: World, enemy: Enemy) extends Army {
 
   def hqcClosest = world.closestWithoutUnits(headquarters._1, headquarters._2, units, List('.', 'O'))
 
+  def roleLessThan(role: String, limit: Int) = unitidRole.values.toList.count(_ == role) < limit
+
   def getTrain = if (units.isEmpty) {
     val hqc = hqcClosest.head
     lastCreated = "Conqueror"
     Some(Train(1, hqc._1, hqc._2))
-  } else if (gold > 50 && hqClosest.nonEmpty && unitidRole.values.toList.count(_ == "Guardian") < 2) {
+  } else if (gold > 50 && hqClosest.nonEmpty && roleLessThan("Guardian", 2)) {
     val hqc = hqcClosest.head
     lastCreated = "Guardian"
     Some(Train(2, hqc._1, hqc._2))
-  } else None
+  } else if (income > 2 && gold > 10 && roleLessThan("Conqueror", 10)) {
+    val chqc = world.myClosestTo(enemyHeadquarters)
+    lastCreated = "Conqueror"
+    Some(Train(1, chqc._1, chqc._2))
+  } else if (income > 30 && gold > 400 && roleLessThan("Scout", 1)) {
+    val chqc = world.myClosestTo(enemyHeadquarters)
+    lastCreated = "Scout"
+    Some(Train(3, chqc._1, chqc._2))
+  }
+  else None
 
-  def nextAction(enemy: Enemy): Action =
+  def nextAction(enemy: Enemy): List[Action] = {
     getTrain match {
-      case Some(train) => train
-      case None => Move(this)
+      case Some(train) => if (units.isEmpty) List(train) else List(Move(this), train)
+      case None => List(Move(this))
     }
+  }
 
   override def toString: String = "ME-------------------------------------------------------------\n" + super.toString
 
@@ -177,7 +199,8 @@ class Me(world: World, enemy: Enemy) extends Army {
 
   def update(world: World) = {
     hqClosest = world.closestWithoutUnits(headquarters._1, headquarters._2, units, List('.', 'O'))
-    trainLevel = if (gold < 50) 1 else 2
+    val deadUnitsId = unitidRole.keys.filterNot(key => units.exists(key == _.id))
+    deadUnitsId.foreach(key => unitidRole = unitidRole - key)
   }
 }
 
@@ -199,7 +222,7 @@ case class Train(level: Int, x: Int, y: Int) extends Action {
 case class Move(me: Me) extends Action {
   val unitsMoves = me.units.map(_.move)
 
-  override def str: String = unitsMoves.map(m => s" MOVE ${m.get._1} ${m.get._2} ${m.get._3};").reduce(_ + _)
+  override def str: String = unitsMoves.map(m => s" MOVE ${m.get._1} ${m.get._2} ${m.get._3}").reduce(_ + "; " + _)
 }
 //------------------------------------------ENTERS----------------------------------------------------------------------
   val numberminespots = readInt
@@ -272,11 +295,11 @@ case class Move(me: Me) extends Action {
       enemy.print
     }
 
-    val action = if (isDebug) Wait("Test") else me.nextAction(enemy)
+    val action = if (isDebug) List(Wait("Test")) else me.nextAction(enemy)
 
 
     step += 1
-    println(s"${action.str}")
+    println(s"${action.map(_.str).reduce(_ + "; " + _)}")
     Console.err.println
   }
 }

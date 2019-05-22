@@ -21,7 +21,6 @@ class Me(world: World, enemy: Enemy) extends Army {
   lazy val enemyHeadquarters: (Int, Int) = (enemy.buildings.head.x, enemy.buildings.head.y)
   override lazy val headquarters: (Int, Int) = (buildings.head.x, buildings.head.y)
   var hqClosest: List[(Int, Int)] = List.empty
-  var trainLevel: Int = 0
 
   def trainCondition = units.isEmpty ||
                                (gold > 30 && income > 5) ||
@@ -29,21 +28,33 @@ class Me(world: World, enemy: Enemy) extends Army {
 
   def hqcClosest = world.closestWithoutUnits(headquarters._1, headquarters._2, units, List('.', 'O'))
 
+  def roleLessThan(role: String, limit: Int) = unitidRole.values.toList.count(_ == role) < limit
+
   def getTrain = if (units.isEmpty) {
     val hqc = hqcClosest.head
     lastCreated = "Conqueror"
     Some(Train(1, hqc._1, hqc._2))
-  } else if (gold > 50 && hqClosest.nonEmpty && unitidRole.values.toList.count(_ == "Guardian") < 2) {
+  } else if (gold > 50 && hqClosest.nonEmpty && roleLessThan("Guardian", 2)) {
     val hqc = hqcClosest.head
     lastCreated = "Guardian"
     Some(Train(2, hqc._1, hqc._2))
-  } else None
+  } else if (income > 2 && gold > 10 && roleLessThan("Conqueror", 10)) {
+    val chqc = world.myClosestTo(enemyHeadquarters)
+    lastCreated = "Conqueror"
+    Some(Train(1, chqc._1, chqc._2))
+  } else if (income > 30 && gold > 400 && roleLessThan("Scout", 1)) {
+    val chqc = world.myClosestTo(enemyHeadquarters)
+    lastCreated = "Scout"
+    Some(Train(3, chqc._1, chqc._2))
+  }
+  else None
 
-  def nextAction(enemy: Enemy): Action =
+  def nextAction(enemy: Enemy): List[Action] = {
     getTrain match {
-      case Some(train) => train
-      case None => Move(this)
+      case Some(train) => if (units.isEmpty) List(train) else List(Move(this), train)
+      case None => List(Move(this))
     }
+  }
 
   override def toString: String = "ME-------------------------------------------------------------\n" + super.toString
 
@@ -51,6 +62,7 @@ class Me(world: World, enemy: Enemy) extends Army {
 
   def update(world: World) = {
     hqClosest = world.closestWithoutUnits(headquarters._1, headquarters._2, units, List('.', 'O'))
-    trainLevel = if (gold < 50) 1 else 2
+    val deadUnitsId = unitidRole.keys.filterNot(key => units.exists(key == _.id))
+    deadUnitsId.foreach(key => unitidRole = unitidRole - key)
   }
 }

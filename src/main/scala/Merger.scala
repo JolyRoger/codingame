@@ -43,7 +43,7 @@ object Merger extends App {
 
   def processLine(lines: List[String]) = {
     lines.filterNot(str => str.trim.startsWith("package") ||
-      str.trim.startsWith("import"))
+      (str.trim.startsWith("import") && !str.trim.startsWith("import scala")))
   }
   def writeToFile(file: File, text: String) = {
     val bw = new BufferedWriter(new FileWriter(file))
