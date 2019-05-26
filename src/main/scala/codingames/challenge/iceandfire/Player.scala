@@ -18,6 +18,7 @@ object Player extends App {
 
 
 //------------------------------------------CLASSES---------------------------------------------------------------------
+  ///Board.scala
   ///World.scala
   ///Soldier.scala
   ///Guardian.scala
@@ -38,9 +39,8 @@ object Player extends App {
   if (outputLikeInput) nms.foreach(arr => Console.err.println(s"${arr(0)} ${arr(1)}"))
 
   val world = World(numberminespots, nms)
-
   val enemy = new Enemy
-  val me = new Me(world, enemy)
+  val me = new Me(world)
 
   // game loop
   while (if (isTest) step < limit else true) {
@@ -104,6 +104,6 @@ object Player extends App {
 
     step += 1
     println(s"${action.map(_.str).reduce(_ + "; " + _)}")
-    Console.err.println
+//    Console.err.println(board.bfs(0))
   }
 }

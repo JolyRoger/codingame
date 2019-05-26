@@ -12,4 +12,6 @@ case class Soldier(id: Int, var level: Int, world: World, x: Int, y: Int) {
       Some((id, target.get._1._1, target.get._1._2))
     } else None
   }
+
+  override def toString = s"$level:[$x,$y]"
 }
