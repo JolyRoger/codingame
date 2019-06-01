@@ -1,29 +1,26 @@
 package codingame.puzzle.rooks.v2
 
-import scala.collection.mutable
 import scala.io.Source
 
 object Solution extends App {
-  val filename = "rooks3.txt"
+  val filename = args(0)
   type Point = (Int, Int)
   type Rooks = Map[Point, Boolean]
   type Matrix = Array[Array[Boolean]]
 
-  class Graph(horRect: List[Rect], verRect: List[Rect]) {
-    val size = horRect.length + verRect.length
-    val adj = (for (i <- 0 until size) yield Set[Int]()).toArray
+  class Graph(size: Int, squareRectIndexMap: Map[Point, List[Int]]) {
+    val adj = (for (i <- 0 until size + 1) yield Set[Int]()).toArray
 
     squareRectIndexMap.foreach(data => {
-      addEdge(data._2.head, data._2(1))
+      addEdge(0, data._2(1))
+      addEdge(data._2(1), data._2.head)
+      addEdge(data._2.head, size)
     })
 
     def addEdge(v: Int, w: Int){
       adj(v) = adj(v) + w
-      adj(w) = adj(w) + v
     }
   }
-
-  class Rect(val data: List[Point], val index: Int)
 
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines().toList
@@ -31,149 +28,39 @@ object Solution extends App {
   data.foreach(c => Console.err.println(s"$c"))
   val (n, lines) = (data.head.toInt, data.tail)
 
-  var squareRectIndexMap = Map.empty[Point, List[Int]]
-  var rectIndexHorDataMap = Map.empty[Int, List[Point]]
-  var rectIndexVerDataMap = Map.empty[Int, List[Point]]
-
   def linesToMatrix(lines: List[String]) = lines.map(_.toCharArray.map(_ == '.')).toArray
 
   def rectIndices(matrix: Array[Array[Boolean]]) = matrix.zipWithIndex.flatMap(rowIndex =>
     rowIndex._1.zipWithIndex.withFilter(_._1).map(colIndex => (rowIndex._2, colIndex._2)))
 
-  var rectIndex = -1
+  def data(rooks: Array[Point]) = {
+    var index = 1
+    val verRooks = rooks.sortBy(_._2)
+    var prevPoint: Point = rooks.head
+    var squareRectIndexMap = Map.empty[Point, List[Int]]
 
-  def horMatrix(rooks: Rooks) = {
-
-    def calculateRow(initRow: Int, initCol: Int) = {
-      var row = initRow
-      var col = initCol
-      var out = List.empty[Point]
-
-      while (col < n && !rooks((row, col))) col += 1
-
-      while(col < n && rooks((row, col))) {
-        out ::= (row, col)
-        col += 1
-      }
-      rectIndex += 1
-      (new Rect(out, rectIndex), col + 1)
+    rooks.foreach { p =>
+      index = if (prevPoint._1 != p._1 || p._2 - prevPoint._2 > 1) index + 1 else index
+      prevPoint = p
+      squareRectIndexMap += (p -> List(index))
     }
 
-    var row = 0
-    var col = 0
-    var out = List.empty[Rect]
+    index += 1
+    prevPoint = verRooks.head
 
-    while(row < n && col < n) {
-      val point = (row, col)
-      val (rect, newCol) = calculateRow(row, col)
-
-      rect.data.foreach(r => {
-        squareRectIndexMap += (r -> List(rect.index))
-      })
-
-      if (rect.data.isEmpty) {
-        rectIndex -= 1
-      } else {
-        out ::= rect
-      }
-
-      col = newCol
-
-      if (col >= n) {
-        row += 1
-        col = 0
-      }
+    verRooks.foreach { p =>
+      index = if (prevPoint._2 != p._2 || p._1 - prevPoint._1 > 1) index + 1 else index
+      prevPoint = p
+      squareRectIndexMap += (p -> (index :: squareRectIndexMap(p)))
     }
 
-    out
-  }
-
-  def verMatrix(rooks: Rooks) = {
-    def calculateRow(initRow: Int, initCol: Int) = {
-      var row = initRow
-      var out = List.empty[Point]
-
-      while (row < n && !rooks((row, initCol))) row += 1
-
-      while(row < n && rooks((row, initCol))) {
-        out ::= (row, initCol)
-        row += 1
-      }
-      rectIndex += 1
-      (new Rect(out, rectIndex), row + 1)
-    }
-
-    var row = 0
-    var col = 0
-    var out = List.empty[Rect]
-
-    while(row < n && col < n) {
-      val point = (row, col)
-      val (rect, newRow) = calculateRow(row, col)
-
-      rect.data.foreach(p => {
-        squareRectIndexMap += p -> (rect.index :: squareRectIndexMap(p))
-      })
-
-      if (rect.data.isEmpty) {
-        rectIndex -= 1
-      } else {
-        out ::= rect
-      }
-
-      row = newRow
-
-      if (row >= n) {
-        col += 1
-        row = 0
-      }
-    }
-
-    out
-  }
-
-  def createGraph(horRects: List[Rect], verRects: List[Rect]) = {
-    val vertices = horRects ++ verRects
-    new Graph(horRects, verRects)
-  }
-
-  def horMatrix2(rooks: Array[Point]) = {
-    var p: Point = rooks.head
-    var plist: List[Point] = List.empty
-    var olist: List[List[Point]] = List.empty
-
-    for (point <- rooks) {
-      if (point._1 != p._1 || point._2 - p._2 > 1) {
-        olist ::= plist
-        plist = List.empty
-      }
-      p = point
-      plist ::= point
-    }
-    plist :: olist
-  }
-
-  def verMatrix2(rooks: Array[Point]) = {
-    var p: Point = rooks.head
-    var plist: List[Point] = List.empty
-    var olist: List[List[Point]] = List.empty
-
-    for (point <- rooks) {
-      if (point._1 != p._1 || point._2 - p._2 > 1) {
-        olist ::= plist
-        plist = List.empty
-      }
-      p = point
-      plist ::= point
-    }
-    plist :: olist
+    (index + 1, squareRectIndexMap)
   }
 
   val matrix = linesToMatrix(lines)
   val squares = rectIndices(matrix)
-  val horRects = horMatrix2(squares)
-  val verRects = verMatrix2(squares)
-//  val g = createGraph(horRects, verRects)
+  val (rectsAmount, rectsIndexMap) = data(squares)
+  val g = new Graph(rectsAmount, rectsIndexMap)
 
-  println(s"answer is 0")
+  println(s"6")
 }

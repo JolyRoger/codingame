@@ -1,10 +1,8 @@
-package codingames.puzzle.rooks
-
-import scala.collection.{SortedMap, mutable}
+//package codingames.puzzle.rooks
 
 object Solution extends App {
-  type Rooks = collection.mutable.Map[(Int, Int), Boolean]
-
+  type Rooks = Map[Point, Boolean]
+  type Point = (Int, Int)
   val n = readInt
 
   Console.err.println(s"$n")
@@ -15,56 +13,65 @@ object Solution extends App {
 
   def linesToMatrix(lines: List[String]) = lines.map(_.toCharArray.map(_ == '.')).toArray
 
-  def matrixToIndices(matrix: Array[Array[Boolean]]) = mutable.Map(matrix.zipWithIndex.flatMap(rowIndex => rowIndex._1.zipWithIndex.map(colIndex => ((rowIndex._2, colIndex._2), colIndex._1))).toMap.toSeq: _*)
+  def rectIndices(matrix: Array[Array[Boolean]]) = matrix.zipWithIndex.flatMap(rowIndex =>
+    rowIndex._1.zipWithIndex.withFilter(_._1).map(colIndex => (rowIndex._2, colIndex._2)))
 
-  def strikeOut(x: Int, y: Int, data: Rooks) = {
-    var lim = 0
+  def data2(rooks: Array[Point]) = {
+    var horIndex = 1
+    var verIndex = 1
+    val verRooks = rooks.sortBy(_._2)
+    var prevPoint: Point = rooks.head
+    var squareRectIndexMap = Map.empty[Point, List[Int]]
 
-    var i = x
-    while (i >= lim && data.get((i, y)).isDefined) {
-      data((i, y)) = false
-      i -= 1
+    rooks.foreach { p =>
+      horIndex = if (prevPoint._1 != p._1 || p._2 - prevPoint._2 > 1) horIndex + 1 else horIndex
+      prevPoint = p
+      squareRectIndexMap += (p -> List(horIndex))
     }
 
-    i = y
-    while (i >= lim && data.get((x, i)).isDefined) {
-      data((x, i)) = false
-      i -= 1
+    //    horIndex += 1
+    prevPoint = verRooks.head
+
+    verRooks.foreach { p =>
+      verIndex = if (prevPoint._2 != p._2 || p._1 - prevPoint._1 > 1) verIndex + 1 else verIndex
+      prevPoint = p
+      squareRectIndexMap += (p -> (verIndex :: squareRectIndexMap(p)))
     }
 
-    i = x
-    lim = n
-    while (i < lim && data.get((i, y)).isDefined) {
-      data((i, y)) = false
-      i += 1
-    }
-
-    i = y
-    while (i < lim && data.get((x, i)).isDefined) {
-      data((x, i)) = false
-      i += 1
-    }
-    data.filter(_._2)
+    (horIndex, verIndex)
   }
 
-  def maxFor(data: Rooks): Int = {
-    if (data.isEmpty) 0
-    else if (data.size == 1) 1
-    else {
-      val sm = SortedMap[(Int, Int), Boolean]() ++ data
-      val rooksAmount = sm.map(square => {
-        val newData = strikeOut(square._1._1, square._1._2, data)
-        1 + maxFor(newData)
-      })
-      rooksAmount.max
+  def data(rooks: Array[Point]) = {
+    var index = 1
+    val verRooks = rooks.sortBy(_._2)
+    var prevPoint: Point = rooks.head
+    var squareRectIndexMap = Map.empty[Point, List[Int]]
+
+    rooks.foreach { p =>
+      index = if (prevPoint._1 != p._1 || p._2 - prevPoint._2 > 1) index + 1 else index
+      prevPoint = p
+      squareRectIndexMap += (p -> List(index))
     }
+
+    index += 1
+    prevPoint = verRooks.head
+
+    verRooks.foreach { p =>
+      index = if (prevPoint._2 != p._2 || p._1 - prevPoint._1 > 1) index + 1 else index
+      prevPoint = p
+      squareRectIndexMap += (p -> (index :: squareRectIndexMap(p)))
+    }
+
+    (index + 1, squareRectIndexMap)
   }
 
-  val res = linesToMatrix(lines)
-  val res2 = matrixToIndices(res)
-  val res3 = res2.filter(_._2)
-  val res5 = maxFor(res3)
+  val matrix = linesToMatrix(lines)
+  val squares = rectIndices(matrix)
+  val (horIndex, verIndex) = data2(squares)
+  //  val (rectsAmount, rectsIndexMap) = data(squares)
+  //  val g = new Graph(rectsAmount, rectsIndexMap)
 
-  Console.err.println(s"answer is $res5")
-  println(res5)
+
+
+  println(s"${Math.min(horIndex, verIndex)}")
 }
