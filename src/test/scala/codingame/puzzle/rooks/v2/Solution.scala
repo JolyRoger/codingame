@@ -9,24 +9,40 @@ object Solution extends App {
   type Rooks = Map[Point, Boolean]
   type Matrix = Array[Array[Boolean]]
 
-  case class Adj(index: Int, capacity: Int, filled: Int, isDirect: Boolean)
+  case class Adj(capacity: Int, filled: Int, isDirect: Boolean)
+  case class Edge(from: Int, to: Int, capacity: Int, filled: Int)
 
   class Graph(size: Int, squareRectIndexMap: Map[Point, List[Int]]) {
-    val adj = (for (i <- 0 until size) yield Set[Adj]()).toArray
+    var edgeMap: Map[Point, Adj] = Map.empty
+    val adj = (for (i <- 0 until size) yield Set[Int]()).toArray
 
     squareRectIndexMap.foreach(data => {
-      addEdge(0, Adj(data._2(1), 1, 0, true))
-      addEdge(data._2(1), Adj(0, 1, 0, false))
+      addEdge(0, data._2(1))
+      edgeMap += (0, data._2(1)) -> Adj(1, 0, true)
+      edgeMap += (data._2(1), 0) -> Adj(1, 0, false)
 
-      addEdge(data._2(1), Adj(data._2.head, 1, 0, true))
-      addEdge(data._2.head, Adj(data._2(1), 1, 0, false))
+      addEdge(data._2(1), data._2.head)
+      edgeMap += (data._2(1), data._2.head) -> Adj(1, 0, true)
+      edgeMap += (data._2.head, data._2(1)) -> Adj(1, 0, false)
 
-      addEdge(data._2.head, Adj(size - 1, 1, 0, true))
-      addEdge(size - 1, Adj(data._2.head, 1, 0, false))
+      addEdge(data._2.head, size - 1)
+      edgeMap += (data._2.head, size - 1) -> Adj(1, 0, true)
+      edgeMap += (size - 1, data._2.head) -> Adj(1, 0, false)
     })
 
-    def addEdge(v: Int, w: Adj){
+    def addEdge(v: Int, w: Int){
       adj(v) = adj(v) + w
+      adj(w) = adj(w) + v
+    }
+
+    def directPath(kv: (Point, Adj), from: Int)= kv._1._1 == 0 && kv._2.filled < kv._2.capacity && kv._2.isDirect
+
+    def path = {
+      val first = edgeMap.find(directPath(_, 0))
+      first match {
+        case Some(edge) =>
+          val second = edgeMap.find(directPath(_, 0))
+      }
     }
 
     def bfs(s: Int) = {
