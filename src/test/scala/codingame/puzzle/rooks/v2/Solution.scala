@@ -1,5 +1,6 @@
 package codingame.puzzle.rooks.v2
 
+import scala.collection.mutable
 import scala.io.Source
 
 object Solution extends App {
@@ -8,17 +9,49 @@ object Solution extends App {
   type Rooks = Map[Point, Boolean]
   type Matrix = Array[Array[Boolean]]
 
+  case class Adj(index: Int, capacity: Int, filled: Int, isDirect: Boolean)
+
   class Graph(size: Int, squareRectIndexMap: Map[Point, List[Int]]) {
-    val adj = (for (i <- 0 until size + 1) yield Set[Int]()).toArray
+    val adj = (for (i <- 0 until size) yield Set[Adj]()).toArray
 
     squareRectIndexMap.foreach(data => {
-      addEdge(0, data._2(1))
-      addEdge(data._2(1), data._2.head)
-      addEdge(data._2.head, size)
+      addEdge(0, Adj(data._2(1), 1, 0, true))
+      addEdge(data._2(1), Adj(0, 1, 0, false))
+
+      addEdge(data._2(1), Adj(data._2.head, 1, 0, true))
+      addEdge(data._2.head, Adj(data._2(1), 1, 0, false))
+
+      addEdge(data._2.head, Adj(size - 1, 1, 0, true))
+      addEdge(size - 1, Adj(data._2.head, 1, 0, false))
     })
 
-    def addEdge(v: Int, w: Int){
+    def addEdge(v: Int, w: Adj){
       adj(v) = adj(v) + w
+    }
+
+    def bfs(s: Int) = {
+      val marked: Array[Boolean] = new Array[Boolean](size)
+      val edgeTo = Array.fill[Int](size)(Int.MaxValue)
+      val distTo = Array.fill[Int](size)(Int.MaxValue)
+      val q = mutable.Queue[Int]()
+      var i = 0
+
+      q.enqueue(s)
+      marked(s) = true
+      distTo(s) = 0
+      while (q.nonEmpty) {
+        val v = q.dequeue
+        i = i + 1
+        adj(v).filterNot(marked).foreach(
+          w => {
+            q.enqueue(w)
+            marked(w) = true
+            edgeTo(w) = v
+            distTo(w) = distTo(v) + 1
+          }
+        )
+      }
+      (edgeTo, distTo)
     }
   }
 
@@ -54,7 +87,7 @@ object Solution extends App {
       squareRectIndexMap += (p -> (index :: squareRectIndexMap(p)))
     }
 
-    (index + 1, squareRectIndexMap)
+    (index + 2, squareRectIndexMap)
   }
 
   val matrix = linesToMatrix(lines)
