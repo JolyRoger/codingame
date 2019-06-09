@@ -9,17 +9,15 @@ object Solution extends App {
 	type Matrix = Array[Array[Boolean]]
 	type Edges = Map[Int, Set[Adj]]
 
-	case class Adj(to: Int, capacity: Int, filled: Int, isDirect: Boolean)
-
-	case class Edge(from: Int, to: Int, capacity: Int, filled: Int)
+	case class Adj(from: Int, to: Int, capacity: Int, filled: Int, isDirect: Boolean)
 
 	class Graph(size: Int, squareRectIndexMap: Map[Point, List[Int]]) {
 		var edgeMap: Edges = Map.empty
 		val adj = new Array[Int](size)
 
 		def putEdge(v: Int, w: Int, edgeMap: Edges) =
-			edgeMap + (v -> (edgeMap.getOrElse(v, Set.empty[Adj]) + Adj(w, 1, 0, true))) +
-				(w -> (edgeMap.getOrElse(w, Set.empty[Adj]) + Adj(v, 1, 0, false)))
+			edgeMap + (v -> (edgeMap.getOrElse(v, Set.empty[Adj]) + Adj(v, w, 1, 0, true))) +
+				(w -> (edgeMap.getOrElse(w, Set.empty[Adj]) + Adj(w, v, 1, 0, false)))
 
 		squareRectIndexMap.foreach(data => {
 			addEdge(0, data._2(1))
@@ -39,22 +37,41 @@ object Solution extends App {
 
 		def directPath(kv: (Point, Adj), from: Int) = kv._1._1 == 0 && kv._2.filled < kv._2.capacity && kv._2.isDirect
 
-		def dfs(v: Int, veMap: Edges, adjs: Set[Adj], path: List[Int]): List[Int] = {
-			if (v == size - 1) v :: path
+		def dfs2 = {
+			val init = Adj(-1, 0, 0, 0, true)
+			var stack = List(init)
+			var path = List.empty[Int]
+			var pathNotFound = true
 
-			val nextOpt = adjs.find(edge => edge.isDirect && edge.capacity - edge.filled > 0)
+			while (stack.nonEmpty && pathNotFound) {
+				val v = stack.head
+				stack = stack.tail
+				path = path.dropWhile(_ > v.from)
+				val ws = edgeMap(v.to).filter(edge => edge.isDirect && edge.capacity - edge.filled > 0).toList
 
-//			val nextOpt = veMap.getOrElse(v, Set.empty[Adj]).find(edge => edge.isDirect && edge.capacity - edge.filled > 0)
-			nextOpt match {
-				case Some(next) =>
-//					edges + (v -> (edges.getOrElse(v, Set.empty[Adj]) + Adj(next.to, 1, 1, true)))
-					dfs(next.to, veMap, veMap(next.to), v :: path)
-				case None =>
-//					veMap + (v -> (veMap.getOrElse(v, Set.empty[Adj]) + Adj(next.to, 1, 1, true)))
-					path
+				pathNotFound = v.to < size - 1
+
+				stack = ws ++ stack
+				path ::= v.to
 			}
-		}
 
+			(if (path.head == size - 1) {
+
+				path = path.reverse
+
+				for (i <- 0 until path.length - 1) {
+					val v = path(i)
+					val next = path(i + 1)
+
+					val adjs = edgeMap(v)
+					val newAdjs = adjs - Adj(v, next, 1, 0, true) +
+										 Adj(v, next, 1, 1, true)
+					edgeMap = edgeMap + (v -> newAdjs)
+
+				}
+				path
+			} else List.empty, edgeMap)
+		}
 	}
 
 	val bufferedSource = Source.fromFile(filename)
@@ -97,11 +114,16 @@ object Solution extends App {
 	val (rectsAmount, rectsIndexMap) = data(squares)
 	val g = new Graph(rectsAmount, rectsIndexMap)
 
+	var resList = List.empty[List[Int]]
 	var res = List.empty[Int]
+
 	do {
-	 	res = g.dfs(0, g.edgeMap, g.edgeMap(0), List.empty[Int])
+		val (newRes, newEdges) = g.dfs2
+		res = newRes
+		resList = if (res.isEmpty) resList else res :: resList
+		g.edgeMap = newEdges
 	} while(res.nonEmpty)
 
 
-	println(s"6")
+	println(s"${resList.length}")
 }
