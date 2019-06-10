@@ -9,7 +9,9 @@ object Solution extends App {
 	type Matrix = Array[Array[Boolean]]
 	type Edges = Map[Int, Set[Adj]]
 
-	case class Adj(from: Int, to: Int, capacity: Int, filled: Int, isDirect: Boolean)
+	case class Adj(from: Int, to: Int, capacity: Int, filled: Int, isDirect: Boolean) {
+		def rest = capacity - filled
+	}
 
 	class Graph(size: Int, squareRectIndexMap: Map[Point, List[Int]]) {
 		var edgeMap: Edges = Map.empty
@@ -37,8 +39,59 @@ object Solution extends App {
 
 		def directPath(kv: (Point, Adj), from: Int) = kv._1._1 == 0 && kv._2.filled < kv._2.capacity && kv._2.isDirect
 
+		def dfs3 = {
+			val init = Adj(-1, 0, 1, 0, true)
+			var stack = List(init)
+			var path = List.empty[Int]
+			var pathNotFound = true
+			val marked = new Array[Boolean](size)
+
+			def augmentCondition(adj: Adj) = !marked(adj.to) && (adj.isDirect ^ adj.rest == 0)
+
+			while (stack.nonEmpty && pathNotFound) {
+				val v = stack.head
+				stack = stack.tail
+				marked(v.to) = true
+				path = path.dropWhile(_ != v.from)
+				val ws = edgeMap(v.to).filter(augmentCondition).toList
+
+				pathNotFound = v.to < size - 1
+
+				stack = ws ++ stack
+				path ::= v.to
+			}
+
+			(if (path.head == size - 1) {
+
+				path = path.reverse
+
+				for (i <- 0 until path.length - 1) {
+					val v = path(i)
+					val next = path(i + 1)
+					if (v < next) {
+						val adjs = edgeMap(v)
+						val adjsBack = edgeMap(next)
+						val newAdjs = adjs - Adj(v, next, 1, 0, true) +
+							Adj(v, next, 1, 1, true)
+						val newAdjsBack = adjsBack - Adj(next, v, 1, 0, false) +
+							Adj(next, v, 1, 1, false)
+						edgeMap = edgeMap + (v -> newAdjs) + (next -> newAdjsBack)
+					} else {
+						val adjs = edgeMap(v)
+						val adjsBack = edgeMap(next)
+						val newAdjsBack = adjsBack - Adj(next, v, 1, 1, true) +
+													 Adj(next, v, 1, 0, true)
+						val newAdjs = adjs - Adj(v, next, 1, 1, false) +
+											 Adj(v, next, 1, 0, false)
+						edgeMap = edgeMap + (v -> newAdjs) + (next -> newAdjsBack)
+					}
+				}
+				path
+			} else List.empty, edgeMap)
+		}
+
 		def dfs2 = {
-			val init = Adj(-1, 0, 0, 0, true)
+			val init = Adj(-1, 0, 1, 0, true)
 			var stack = List(init)
 			var path = List.empty[Int]
 			var pathNotFound = true
@@ -47,7 +100,7 @@ object Solution extends App {
 				val v = stack.head
 				stack = stack.tail
 				path = path.dropWhile(_ > v.from)
-				val ws = edgeMap(v.to).filter(edge => edge.isDirect && edge.capacity - edge.filled > 0).toList
+				val ws = edgeMap(v.to).filter(edge => edge.isDirect && edge.rest > 0).toList
 
 				pathNotFound = v.to < size - 1
 
@@ -64,9 +117,12 @@ object Solution extends App {
 					val next = path(i + 1)
 
 					val adjs = edgeMap(v)
+					val adjsBack = edgeMap(next)
 					val newAdjs = adjs - Adj(v, next, 1, 0, true) +
 										 Adj(v, next, 1, 1, true)
-					edgeMap = edgeMap + (v -> newAdjs)
+					val newAdjsBack = adjsBack - Adj(next, v, 1, 0, false) +
+										 		 Adj(next, v, 1, 1, false)
+					edgeMap = edgeMap + (v -> newAdjs) + (next -> newAdjsBack)
 
 				}
 				path
@@ -124,6 +180,15 @@ object Solution extends App {
 		g.edgeMap = newEdges
 	} while(res.nonEmpty)
 
+	var augResList = List.empty[List[Int]]
+	var augRes = List.empty[Int]
 
-	println(s"${resList.length}")
+	do {
+		val (newAugRes, newAugEdges) = g.dfs3
+		augRes = newAugRes
+		augResList = if (augRes.isEmpty) augResList else augRes :: augResList
+		g.edgeMap = newAugEdges
+	} while(augRes.nonEmpty)
+
+	println(s"${resList.length + augResList.length}")
 }
