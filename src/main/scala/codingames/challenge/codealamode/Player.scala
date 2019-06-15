@@ -369,7 +369,7 @@ object Player extends App {
                      "CROISSANT-DISH-ICE_CREAM-TART" -> croissantIceCreamTart,
                      "BLUEBERRIES-DISH-TART" -> blueberriesTart,
                      "CROISSANT-DISH-TART" -> croissantTart,
-                     "CHOPPED_STRAWBERRIES-DISH-TART" -> choppedStrawberriesTart,
+                     "CHOPPED_STRAWBERRIES-DISH-TART" -> choppedStrawberriesTart
 
 
   )

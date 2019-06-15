@@ -1,6 +1,5 @@
 package codingames.medium.skynetrevolution
 
-import scala.annotation.tailrec
 import scala.collection.mutable
 
 object Player extends App {
