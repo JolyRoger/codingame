@@ -1,4 +1,4 @@
-//package codingames.puzzle.rooks
+package codingames.puzzle.rooks
 
 object Solution extends App {
 	type Point = (Int, Int)
