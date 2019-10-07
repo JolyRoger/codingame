@@ -1,4 +1,4 @@
-//package codingames.challenge.unleash
+package codingames.challenge.unleash
 
 import math._
 import scala.util._
@@ -24,13 +24,16 @@ object RobotManager {
   var radarRequested = false
   var trapRequested = false
 
-  def dig(mapDataMap: Map[(Int, Int), (String, Int)], robot: Robot) {
+  def dig(mapDataMap: Map[(Int, Int), (String, Int)], robot: Robot) = {
+    val noQuestionMark = mapDataMap.filter(_._2._1 != "?")
+
     val coords = mapDataMap.withFilter(entity => entity._2._2 == 0).map(_._1).filter(c => c._1 != 0).toArray
     val coordRand = coords(Random.nextInt(coords.length))
     robot.command = "DIG"
     robot.targetX = coordRand._1
     robot.targetY = coordRand._2
     robot.isFlying = true
+    mapDataMap - coordRand
   }
 
   def enrich(robot: Robot,
@@ -38,6 +41,7 @@ object RobotManager {
              entityData: List[Array[Int]]) = {
 //    Console.err.println(s"BEFORE COMMAND: ${robot.i}: (${robot.x},${robot.y}) ${robot.getCommand} / ${robot.isFlying}")
 //    robot.isFlying = robot.targetX
+    var localMapDataMap = Map.empty[(Int, Int), (String, Int)]
 
     if (mapDataMap((robot.targetX, robot.targetY))._2 == 1 &&
       (mapDataMap((robot.targetX, robot.targetY))._1 == "?" || mapDataMap((robot.targetX, robot.targetY))._1 == "0")) {
@@ -54,7 +58,7 @@ object RobotManager {
       robot.targetY = robot.y
     } else if (robot.item == 2 || robot.item == 3) {
       if (!robot.isFlying) {
-        dig(mapDataMap, robot)
+        localMapDataMap = dig(mapDataMap, robot)
       }
     } else if (robot.item == -1) {
       if (!robot.isFlying) {
@@ -67,29 +71,37 @@ object RobotManager {
           robot.command = "REQUEST TRAP"
           trapRequested = true
         } else {
-          dig(mapDataMap, robot)
+          localMapDataMap = dig(mapDataMap, robot)
         }
       }
     }
 //    Console.err.println(s"AFTER COMMAND: ${robot.i}: (${robot.x},${robot.y}) ${robot.getCommand} / ${robot.isFlying}")
-    robot
+    (robot, localMapDataMap)
   }
 
   def command(robots: List[Robot],
               mapDataMap: Map[(Int, Int), (String, Int)],
               entityData: List[Array[Int]]) = {
 
-//    Console.err.println(s"----------------- ROBOTS ------------------------------------------------")
-//    robots.foreach(_.print)
+/*
+    Console.err.println(s"----------------- ROBOTS ------------------------------------------------")
+    robots.foreach(_.print)
     Console.err.println(s"----------------- ENTITY DATA -------------------------------------------")
     entityData.foreach(ed => {
       Console.err.println(s"[${ed(0)}: ${ed(1)}, (${ed(2)}, ${ed(3)}): ${ed(4)}], ")
     })
     Console.err.println(s"----------------- MAP DATA MAP -------------------------------------------")
-//    mapDataMap.foreach(Console.err.println)
+    mapDataMap.foreach(Console.err.println)
     Console.err.println(s"(11,12) ${mapDataMap(11, 12)}")
     Console.err.println(s"(12,8) ${mapDataMap(12, 8)}")
     Console.err.println(s"----------------- MAP DATA MAP -------------------------------------------")
+
+    val noQuestionMark = mapDataMap.filter(_._2._1 != "?")
+    Console.err.println(s"noQuestionMark=${noQuestionMark.size}")
+    noQuestionMark.foreach(pair => Console.err.println(s"noQuestionMark: $pair"))
+    val noHoles = mapDataMap.filter(_._2._2 != 0)
+    Console.err.println(s"noHoles=${noHoles.size}")
+*/
 
     robots.foreach(enrich(_, mapDataMap, entityData))
     robots
