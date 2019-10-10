@@ -4,15 +4,25 @@ import math._
 import scala.util._
 
 class Square(x: Int, y: Int) {
+  val getX = x
+  val getY = y
   var hole: Boolean = false
   var radar: Int = -1  // 0 - not presented, 1 - on the place, -1 - unknown
   var trap: Int = -1   // 0 - not presented, 1 - on the place, -1 - unknown
   var ore: Int = -1    // -1 - unknown, or amount of ore
   var enemy: Boolean = false
   var me: Boolean = false
+  var radarAffected: Set[(Int, Int)] = Set.empty
+  def radarAffectedAmount(boardData: Map[(Int, Int), Square]) = radarAffected.count(boardData(_).ore == -1)
 }
-
-class GameData(var ore: List[(Int, Int)])
+class RadarOrdering(boardData: Map[(Int, Int), Square]) extends Ordering[Square] {
+  def compare(a: Square, b: Square) = {
+    val ar = a.radarAffectedAmount(boardData)
+    val br = b.radarAffectedAmount(boardData)
+    if (ar > br) 1 else if (ar < br) -1 else 0
+  }
+}
+class GameData(var ore: Set[(Int, Int)])
 
 class Robot(val i: Int, var x: Int, var y: Int, var item: Int) {
   var command = "WAIT"
@@ -35,7 +45,7 @@ object RobotManager {
   var radarRequested = false
   var trapRequested = false
 
-  def closest(p: (Int, Int), items: List[(Int, Int)]) = if (items.isEmpty) p else items.minBy(item => euclidean(p, item))
+  def closest(p: (Int, Int), items: Set[(Int, Int)]) = if (items.isEmpty) p else items.minBy(item => euclidean(p, item))
   def euclidean(a: (Int, Int), b: (Int, Int)) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
 
   def assign(robot: Robot, coord: (Int, Int)) = {
@@ -46,31 +56,28 @@ object RobotManager {
 //      coord
   }
 
-  def setRandomCoord(boardData: Map[(Int, Int), Square], robot: Robot) {
+  def setClosestCoord(boardData: Map[(Int, Int), Square], robot: Robot) {
       val coords = boardData.withFilter(entity => !entity._2.hole &&
                                                    entity._2.trap != 1 &&
-                                                   entity._2.radar != 1).map(_._1).filter(c => c._1 != 0).toArray
+                                                   entity._2.radar != 1).map(_._1).filter(c => c._1 != 0).toSet
 //    val cl = closest((robot.x, robot.y), coords)
 //    assign(robot, cl)
-
-      val coordRand = coords(Random.nextInt(coords.length))
-      assign(robot, coordRand)
+      val closestOre = closest((robot.x, robot.y), coords)
+      assign(robot, closestOre)
   }
 
   def dig(boardData: Map[(Int, Int), Square],
           gameData: GameData,
           robot: Robot) = {
 
-//    Console.err.println(s"-----------!!ORE!!-------------")
+// Console.err.println(s"-----------!!ORE!!-------------")
 //    gameData.ore.foreach(Console.err.println)
-
-    gameData.ore.headOption match {
-      case Some(coord) =>
-        assign(robot, coord)
-
-//        gameData.mapDataMap = gameData.mapDataMap - assign(robot, coord)
-        gameData.ore = gameData.ore.tail
-      case None => setRandomCoord(boardData, robot)
+    if (gameData.ore.nonEmpty) {
+      val closestOre = closest((robot.x, robot.y), gameData.ore)
+      assign(robot, closestOre)
+      gameData.ore = gameData.ore - closestOre
+    } else {
+      setClosestCoord(boardData, robot)
     }
   }
 
@@ -80,9 +87,9 @@ object RobotManager {
                    radarcooldown: Int, trapcooldown: Int) {
 //    Console.err.println(s"BEFORE COMMAND: ${robot.i}: (${robot.x},${robot.y}) ${robot.getCommand} / ${robot.isFlying}")
 //    robot.isFlying = robot.targetX
-    if (robot.targetX < 0 || robot.targetY < 0) {
+    if (robot.x < 0 || robot.y < 0 || robot.targetX < 0 || robot.targetY < 0) {
       robot.command = "WAIT"
-      Console.err.println(s"ROBOT ${robot.i} IS WRONG!!")
+//      Console.err.println(s"ROBOT ${robot.i} IS DEAD :(")
     } else {
       if (boardData((robot.targetX, robot.targetY)).hole &&
         (boardData((robot.targetX, robot.targetY)).ore == 0 || boardData((robot.targetX, robot.targetY)).ore == -1)) {
@@ -97,39 +104,66 @@ object RobotManager {
         robot.command = "MOVE"
         robot.targetX = 0
         robot.targetY = robot.y
-      } else if (robot.item == 2) {
+      } else if (robot.item == 2) {   // radar
         if (!robot.isFlying) {
-          dig(boardData, gameData, robot)
+          val maxSquare = boardData.filter(square => square._1._1 != 0 && square._2.trap != 1).values.max(new RadarOrdering(boardData))
+        //   if (maxSquare.getX == 0) {
+        //       Console.err.println(s"X0 maxSquare.getX")
+        //     }
+          assign(robot, (maxSquare.getX, maxSquare.getY))
+//          dig(boardData, gameData, robot)
         }
-      } else if (robot.item == 3) {
-        if (!robot.isFlying) {
-          boardData.find(sq => !sq._2.hole && sq._2.ore == 0) match {
-            case Some(tp) => assign(robot, tp._1)
-            case None => dig(boardData, gameData, robot)
+      } else if (robot.item == 3) {   // trap
+          val targetSquare = boardData((robot.targetX, robot.targetY))
+          if (!robot.isFlying || targetSquare.ore == 0 || targetSquare.trap == 1) {
+            boardData.find(sq => /*!sq._2.hole && */sq._2.ore == 2) match {
+              case Some(tp) => assign(robot, tp._1)
+              case None => dig(boardData, gameData, robot)
+          }
+        } else {
+          if (targetSquare.ore == 0 || targetSquare.trap == 1) {
+            boardData.find(sq => /*!sq._2.hole && */sq._2.ore == 2) match {
+              case Some(tp) =>
+                // if (tp._1._1 == 0) {
+                //   Console.err.println(s"X0 robot has trap")
+                // }
+                assign(robot, tp._1)
+              case None =>
+                dig(boardData, gameData, robot)
+            }
           }
         }
       } else if (robot.item == -1) {
         if (!robot.isFlying) {
   //        Console.err.println(s"-1 SECTION :: BEFORE COMMAND: ${robot.i}: (${robot.x},${robot.y}) ${robot.getCommand} / ${robot.isFlying}")
   //        Console.err.println(s"trapRequested:: $trapRequested\tradarRequested::$radarRequested")
-          if (!radarRequested && radarcooldown == 0) {
+          if (!radarRequested && radarcooldown == 0 && robot.x < 13) {
             robot.command = "REQUEST RADAR"
             radarRequested = true
-          } else if (!trapRequested && trapcooldown == 0) {
-            if (boardData.exists(sq => !sq._2.hole && sq._2.ore == 0)) {
+          } else if (!trapRequested && trapcooldown == 0 && robot.x < 13) {
+            if (boardData.exists(sq => /*!sq._2.hole && */sq._2.ore == 2)) {
                 robot.command = "REQUEST TRAP"
                 trapRequested = true
             } else dig(boardData, gameData, robot)
 
-/*
-            val trapsPlaces = boardData.withFilter(sq => !sq._2.hole && sq._2.ore == 0).map(_._1)
-            Console.err.println(s"--------- TRAP PLACES -------------")
-            trapsPlaces.foreach(tp => Console.err.print(s"$tp "))
-            Console.err.println
-*/
+//            val trapsPlaces = boardData.withFilter(sq => !sq._2.hole && sq._2.ore == 0).map(_._1)
+//            Console.err.println(s"--------- TRAP PLACES -------------")
+//            trapsPlaces.foreach(tp => Console.err.print(s"$tp "))
+//            Console.err.println
+
           } else {
             dig(boardData, gameData, robot)
-          }
+          } 
+            
+          
+        } else {
+            val targetSquare = boardData((robot.targetX, robot.targetY))
+//            Console.err.print(s"${robot.i}\t")
+//            Console.err.println(s"targetSquare:(${targetSquare.getX}, ${targetSquare.getY}) ore:${targetSquare.ore} trap:${targetSquare.trap}")
+            if (targetSquare.ore == 0 || targetSquare.trap == 1) {
+                robot.isFlying = false
+                dig(boardData, gameData, robot)
+            }
         }
       }
     }
@@ -140,19 +174,24 @@ object RobotManager {
               boardData: Map[(Int, Int), Square],
               radarcooldown: Int, trapcooldown: Int) = {
 
-    radarRequested = false
-    trapRequested = false
-
     val oreMap = boardData.filter(_._2.ore > 0)
-    val traps = boardData.withFilter(_._2.trap == 1).map(_._1).toSet
+    val traps = boardData.filter(_._2.trap == 1).keySet
 
-    val ore = oreMap.map(kv => List.fill(kv._2.ore)(kv._1)).flatten.filterNot(traps).toList
+    val ore = oreMap.map(kv => List.fill(kv._2.ore)(kv._1)).flatten.filterNot(traps).toSet
     val gameData = new GameData(ore)
 
+    radarRequested = robots.size <= 2 || ore.size > robots.size
+//    trapRequested = true
+    trapRequested = robots.size <= 2 || traps.size >= 7
+
+/*
+    Console.err.println(s"radarRequested=$radarRequested trapRequested=$trapRequested")
+    Console.err.println(s"--------- ORE -------------")
+    ore.foreach(visOre => Console.err.print(s"$visOre "))
+    Console.err.println
     Console.err.println(s"--------- TRAPS -------------")
     traps.foreach(trap => Console.err.print(s"$trap "))
     Console.err.println
-/*
     Console.err.println(s"--------- NOTH -------------")
     trapsPlaces.foreach(noth => Console.err.print(s"$noth "))
     Console.err.println
@@ -194,6 +233,25 @@ object Player extends App {
     res._1.map(_._1).zip(res._2.map(_._1.toInt))/*.zipWithIndex*/
   }
 
+  def calc(coord: (Int, Int), offset: Int, leftLimit: Int, rightLimit: Int) = {
+    val (x,y) = coord
+    val internalOffset = 4 - Math.abs(offset)
+    val a = (x - internalOffset to x).dropWhile(_ < leftLimit).toSet
+    val b = (x to x + internalOffset).takeWhile(_ <= rightLimit).toSet
+    (a ++ Set(x) ++ b).map((_, y - offset)).filter(pair => pair._2 >= 0 && pair._2 < 15)
+  }
+
+  def calcSquare(coord: (Int, Int)) = {
+    (for (offset <- -4 to 4) yield calc(coord, offset, 1, 29)).toSet.flatten
+  }
+
+  def calcVisibleSquares(boardData: Map[(Int, Int), Square]) = {
+    boardData.foreach(pair => {
+      pair._2.radarAffected = calcSquare(pair._1)
+    })
+
+  }
+
   def createBoardData(width: Int, height: Int) = {
     (for (i <- 0 until height; j <- 0 until width) yield (j,i) -> new Square(j,i)).toMap
   }
@@ -201,7 +259,7 @@ object Player extends App {
     for (i <- mapData.indices; j <- mapData(i).indices) {
       val square = boardData((j, i))
       val (ore, hole) = mapData(i)(j)
-      if (ore != "?") square.ore = ore.toInt
+      if (ore != "?") square.ore = ore.toInt else square.ore = -1
       square.hole = hole == 1
     }
   }
@@ -210,7 +268,7 @@ object Player extends App {
 
   // height: size of the map
   val Array(width, height) = for (i <- readLine split " ") yield i.toInt
-  Console.err.println(s"width=$width\theight=$height")
+//  Console.err.println(s"width=$width\theight=$height")
 
   var myRobotsRaw: List[Robot] = List.empty
   var myRobotsMap: Map[Int, Robot] = Map.empty
@@ -220,7 +278,7 @@ object Player extends App {
   while (true) {
     // myscore: Amount of ore delivered
     val Array(myscore, opponentscore) = for (i <- readLine split " ") yield i.toInt
-    Console.err.println(s"myscore=$myscore\topponentscore=$opponentscore")
+//    Console.err.println(s"myscore=$myscore\topponentscore=$opponentscore")
 
     val mapData = (for (i <- 0 until height) yield {
       val inputsStr = readLine
@@ -244,7 +302,7 @@ object Player extends App {
     // radarcooldown: turns left until a new radar can be requested
     // trapcooldown: turns left until a new trap can be requested
     val Array(entitycount, radarcooldown, trapcooldown) = for (i <- readLine split " ") yield i.toInt
-    Console.err.println(s"entitycount=$entitycount radarcooldown=$radarcooldown trapcooldown=$trapcooldown")
+//    Console.err.println(s"entitycount=$entitycount radarcooldown=$radarcooldown trapcooldown=$trapcooldown")
 
     val entityData = (for (i <- 0 until entitycount) yield
       // id: unique id of the entity
@@ -262,11 +320,15 @@ object Player extends App {
       myRobotsRaw = myRobotsData.map(dataset => new Robot(dataset(0), dataset(2), dataset(3), dataset(4)))
       myRobotsMap = myRobotsRaw.map(robot => robot.i -> robot).toMap
       boardData = createBoardData(width, height)
+      calcVisibleSquares(boardData)
     } else {
       enrichBoardData(mapData, boardData)
       entityData.foreach(dataset => {
         if (dataset(2) > -1 && dataset(3) > -1) {
           val square = boardData((dataset(2), dataset(3)))
+//          if (square.getX == 20 && square.getY == 8) {
+//            Console.err.println(s"(20,8) trap=${square.trap} data=${dataset(4)}")
+//          }
           dataset(1) match {
             case 0 => square.me = true
             case 1 => square.enemy = true
@@ -285,15 +347,27 @@ object Player extends App {
 
     val myRobots = RobotManager.command(myRobotsRaw, boardData, radarcooldown, trapcooldown)
 
-
-    if (myRobots.length < 5) Console.err.println(s"ROBOT IS DEAD!")
-
-    for (i <- 0 until 5) {
+//    for (i <- 0 until 5) {
       // Write an action using println
       // To debug: Console.err.println("Debug messages...")
+      myRobotsMap.values.foreach(robot => {
 
-      println(myRobotsMap(i).getCommand) // WAIT|MOVE x y|DIG x y|REQUEST item
-    }
+    //   Console.err.print(s"robot ${robot.i} isFlying:${robot.isFlying} ")
+    //   Console.err.print(s"target: (${robot.targetX}, ${robot.targetY} ore: ${boardData((robot.targetX, robot.targetY)).ore} ")
+    //   Console.err.print(s"hole: ${boardData((robot.targetX, robot.targetY)).hole} ")
+    //   Console.err.println(s"mapDataYX:${mapData(robot.targetY)(robot.targetX)}")
+
+        if (robot.getCommand == "DIG" &&
+            (robot.targetX == robot.x && robot.targetY == robot.y) ||
+            (robot.targetX - 1 == robot.x && robot.targetY == robot.y) ||
+            (robot.targetX + 1 == robot.x && robot.targetY == robot.y) ||
+            (robot.targetX == robot.x && robot.targetY - 1 == robot.y) ||
+            (robot.targetX == robot.x && robot.x + 1 == robot.y)) robot.isFlying = false
+
+
+        println(robot.getCommand) // WAIT|MOVE x y|DIG x y|REQUEST item
+      })
+//    }
 
     firstMove = false
   }

@@ -88,4 +88,15 @@ class PlayerTest extends FlatSpec {
     Player.enrichBoardData(mapData, boardData)
     assert(boardData((0,0)).hole && boardData((0,0)).ore == 2)
   }
+
+  "A Player" should "calculate squares for radar" in {
+    val boardData = Player.createBoardData(30, 15)
+    Player.calcVisibleSquares(boardData)
+    val radarCoord = (7,0)
+    val affectedCoord = (1,0)
+    val amountBefore  = boardData(affectedCoord).radarAffectedAmount(boardData)
+    boardData(radarCoord).radarAffected.foreach(pair => boardData(pair).ore = 0)
+    val amountAfter  = boardData(affectedCoord).radarAffectedAmount(boardData)
+    Console.err.println(s"before: $amountBefore\tafter: $amountAfter")
+  }
 }
