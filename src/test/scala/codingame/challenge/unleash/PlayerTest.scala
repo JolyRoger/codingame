@@ -45,20 +45,6 @@ class PlayerTest extends FlatSpec {
     Array(10, 3, 1,  5, -1)
   )
 
-  val hq: List[Int] = List(Player.toNumber((6,0)), Player.toNumber((0,0)), Player.toNumber((4,0)), Player.toNumber((12,0)), Player.toNumber((8,0)))
-
-  "A Player" should "convert number to matrix" in {
-    val playerPoint = 31
-    val res = Player.toMatrix(playerPoint)
-    assert(res == (1, 1))
-  }
-
-  "A Player" should "convert matrix to number" in {
-    val playerPoint = (19, 2)
-    val res = Player.toNumber(playerPoint)
-    assert(res == 79)
-  }
-
   "A Player" should "connect ore and hole to tuple" in {
     val oh = Array("?", "0", "?", "1", "?", "0", "?", "0", "?", "0", "?", "0", "?", "0", "?", "0", "?", "0", "?", "0")
     val res = Player.oreHole(oh)
@@ -76,33 +62,35 @@ class PlayerTest extends FlatSpec {
     ))
   }
 
+  "A Player" should "do smth" in {
+    val a = List((1,1), (1,2), (1,1), (1,3), (1,1), (1,4), (1,5))
+    val b = List((1,1), (1,2), (1,3), (1,7), (1,8), (1,1))
+
+    val res1 = a.intersect(b)
+    val res2 = b.intersect(a)
+
+    val enemyData: List[Array[Int]] = List(
+      Array(1,2, 1,1, 4),
+      Array(1,2, 4,2, 4),
+      Array(1,2, 1,1, 4),
+      Array(1,2, 9,5, 4),
+      Array(1,2, 7,4, 4)
+    )
+    val enemyRobotsData = enemyData.groupBy(data => (data(2), data(3)))
+
+    Console.err.println(s"$res1")
+    Console.err.println(s"$res2")
+    enemyRobotsData.foreach(v => Console.err.println(s"${v._1} -> ${v._2.size}"))
+    Console.err.println(s"$enemyRobotsData")
+  }
+
   "A Player" should "enrich a robot with command" in {
-    val boardData = Player.createBoardData(30, 15)
-    Player.enrichBoardData(mapData, boardData)
-    Player.calcVisibleSquares(boardData)
-    boardData((1,0)).myHole = true
-    boardData((1,1)).myHole = true
+    Player.enrichBoardData(mapData, Player.boardData2)
+    Player.calcVisibleSquares(Player.boardData2)
+    Player.boardData2((1,0)).myHole = true
+    Player.boardData2((1,1)).myHole = true
     robots.head.isFlying = true
     robots.head.item = 2
-    val res = RobotManager.command(robots, boardData, 1, 1)
-    assert(res.nonEmpty)
-  }
-
-  "A Player" should "create and populate board data" in {
-    val boardData = Player.createBoardData(30, 15)
-    assert(!boardData((0,0)).hole && boardData((0,0)).ore == -1)
-    Player.enrichBoardData(mapData, boardData)
-    assert(boardData((0,0)).hole && boardData((0,0)).ore == 2)
-  }
-
-  "A Player" should "calculate squares for radar" in {
-    val boardData = Player.createBoardData(30, 15)
-    Player.calcVisibleSquares(boardData)
-    val radarCoord = (7,0)
-    val affectedCoord = (1,0)
-    val amountBefore  = boardData(affectedCoord).radarAffectedAmount(boardData)
-    boardData(radarCoord).radarAffected.foreach(pair => boardData(pair).ore = 0)
-    val amountAfter  = boardData(affectedCoord).radarAffectedAmount(boardData)
-    Console.err.println(s"before: $amountBefore\tafter: $amountAfter")
+    RobotManager.command(robots, Player.boardData2, 1, 1)
   }
 }
