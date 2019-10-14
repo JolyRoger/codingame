@@ -91,6 +91,6 @@ class PlayerTest extends FlatSpec {
     Player.boardData2((1,1)).myHole = true
     robots.head.isFlying = true
     robots.head.item = 2
-    RobotManager.command(robots, Player.boardData2, 1, 1)
+    RobotManager.command(robots, Player.boardData2, 1, 1, false)
   }
 }
