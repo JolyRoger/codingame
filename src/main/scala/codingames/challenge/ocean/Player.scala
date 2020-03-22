@@ -17,6 +17,11 @@ class Square(x: Int, y: Int, sym: Char) {
 }
 
 class SquareManager(var myPosition: Square, board: Array[Array[Square]]) {
+  def surface {
+    board.foreach(_.foreach(square => square.accessible = !square.rock ))
+    myPosition.accessible = false
+  }
+
 
   myPosition.accessible = false
 
@@ -81,8 +86,12 @@ object Player extends App {
     // Write an action using println
     // To debug: Console.err.println("Debug messages...")
     val directions = manager.possibleDirection
-    val index = rand.nextInt(directions.length)
+    val command = if (directions.isEmpty) "SURFACE" else s"MOVE ${directions(rand.nextInt(directions.length))}"
 
-    println(s"MOVE ${directions(index)} TORPEDO")
+    if (command == "SURFACE") {
+      manager.surface
+    }
+
+    println(s"$command")
   }
 }
