@@ -1,29 +1,56 @@
-//package codingames.challenge.ocean
+package codingames.challenge.ocean
 
 import math._
 import scala.io.Source
 import scala.util._
 import scala.io.StdIn._
 
-
 class Square(x: Int, y: Int, sym: Char) {
   val getX = x
   val getY = y
   val getSym = sym
-  val rock = sym == 'x'
+  val water = sym == '.'
   var accessible = sym == '.'
-  def print = Console.err.print(s"$sym")
-//  def print = Console.err.print(s"$x:$y:$sym ")
-}
 
-class SquareManager(var myPosition: Square, board: Array[Array[Square]]) {
-  def surface {
-    board.foreach(_.foreach(square => square.accessible = !square.rock ))
-    myPosition.accessible = false
+  val allTorpedoSquares = calcSquare(x, y)
+
+  private def calc(x: Int, y: Int, offset: Int, leftLimit: Int, rightLimit: Int) = {
+    val internalOffset = 4 - Math.abs(offset)
+    val a = (x - internalOffset to x).dropWhile(_ < leftLimit).toSet
+    val b = (x to x + internalOffset).takeWhile(_ <= rightLimit).toSet
+    (a ++ Set(x) ++ b).map((_, y - offset)).filter(pair => pair._2 >= 0 && pair._2 < 15)
   }
 
+  private def calcSquare(x: Int, y: Int) = {
+    (for (offset <- -4 to 4) yield calc(x, y, offset, 0, 14)).toSet.flatten
+  }
 
+  def print = Console.err.print(s"$sym")
+  override def toString = s"($x,$y)$sym"
+}
+
+class SquareManager(board: Array[Array[Square]]) {
+  val flattenBoard = board.flatten
+  val coordSquaresMap = flattenBoard.map(square => ((square.getX, square.getY), square)).toMap
+  val legalSquares = flattenBoard.filter(_.accessible)
+  val rand = new Random(System.currentTimeMillis)
+//  var myPosition = coordSquaresMap((0, 8))
+  var myPosition = legalSquares(rand.nextInt(legalSquares.length))
+  Console.err.println(s"my position=$myPosition")
+
+  val torpedoSquareMap = legalSquares.map(square => (square, square.allTorpedoSquares.filter(coordSquaresMap(_).water))).toMap
+  val safeTorpedoSquareMap = torpedoSquareMap.map(kv => (kv._1, kv._2.filter { xy =>
+    (Math.abs(kv._1.getX - xy._1) > 1 || Math.abs(kv._1.getY - xy._2) > 1) && coordSquaresMap(xy).water
+  }))
   myPosition.accessible = false
+
+  def safeTorpedoSquares = safeTorpedoSquareMap(myPosition)
+
+  def surface = {
+    legalSquares.foreach(square => square.accessible = true)
+    myPosition.accessible = false
+    ""
+  }
 
   def setMyPosition(square: Square) = {
     myPosition = square
@@ -38,6 +65,8 @@ class SquareManager(var myPosition: Square, board: Array[Array[Square]]) {
                             board(xy._2)(xy._1).accessible)
       .map(_._3)
   }
+
+
 }
 
 object Player extends App {
@@ -55,23 +84,13 @@ object Player extends App {
 
   val boardSym = (for (i <- 0 until height) yield readLine).map(_.toCharArray)
   val board = boardSym.zipWithIndex.map(arrIndex => arrIndex._1.zipWithIndex.map(symIndex => new Square(symIndex._2, arrIndex._2, symIndex._1))).toArray
+  val manager = new SquareManager(board)
 
-  val legalSquares = board.flatten.filter(_.accessible)
-  val rand = new Random(System.currentTimeMillis)
-  val randSquare = legalSquares(rand.nextInt(legalSquares.length))
+  board.foreach(bl => {
+    bl.foreach(_.print)
+    Console.err.println})
 
-
-
-
-//  board.foreach(bl => {
-//    bl.foreach(_.print)
-//    Console.err.println})
-
-  // Write an action using println
-  // To debug: Console.err.println("Debug messages...")
-
-  println(s"${randSquare.getX} ${randSquare.getY}")
-  val manager = new SquareManager(randSquare, board)
+  println(s"${manager.myPosition.getX} ${manager.myPosition.getY}")
 
   // game loop
   while (true) {
@@ -83,15 +102,23 @@ object Player extends App {
     val opponentOrders = readLine
     Console.err.println(s"opponentOrders=$opponentOrders")
 
-    // Write an action using println
-    // To debug: Console.err.println("Debug messages...")
     val directions = manager.possibleDirection
-    val command = if (directions.isEmpty) "SURFACE" else s"MOVE ${directions(rand.nextInt(directions.length))}"
+    val mainCommand = if (directions.isEmpty) "SURFACE" else s"MOVE ${directions(manager.rand.nextInt(directions.length))} TORPEDO"
 
-    if (command == "SURFACE") {
+    val dopCommand = if (mainCommand == "SURFACE") {
       manager.surface
+    } else if (mainCommand.startsWith("MOVE")) {
+      s"${if (torpedoCooldown > 0) "" else {
+        val torpedoSquares = manager.safeTorpedoSquares
+        torpedoSquares.find(_ => true) match {
+          case Some(s) => {
+            s"|TORPEDO ${s._1} ${s._2}"
+          }
+          case None => ""
+        }
+      }}"
     }
 
-    println(s"$command")
+    println(s"$mainCommand$dopCommand")
   }
 }

@@ -1,6 +1,5 @@
 package codingame.challenge.ocean
 
-import codingames.challenge.ocean.Player.readLine
 import codingames.challenge.ocean.{Player, Square, SquareManager}
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
@@ -24,10 +23,6 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   val boardSym = (for (i <- 0 until height) yield readLine).map(_.toCharArray)
   val board = boardSym.zipWithIndex.map(arrIndex => arrIndex._1.zipWithIndex.map(symIndex => new Square(symIndex._2, arrIndex._2, symIndex._1))).toArray
 
-  val legalSquares = board.flatten.filter(_.accessible)
-  val rand = new Random(System.currentTimeMillis)
-  val randSquare = legalSquares(rand.nextInt(legalSquares.length))
-
   board.foreach(bl => {
     bl.foreach(_.print)
     Console.err.println})
@@ -35,9 +30,6 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   // Write an action using println
   // To debug: Console.err.println("Debug messages...")
 
-  println(s"${randSquare.getX} ${randSquare.getY}")
-  randSquare.accessible = false
-  val manager = new SquareManager(randSquare, board)
 
 //======================================================================================================================
   "A Player" should "run application" in {
@@ -45,8 +37,13 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   }
 
   "A SquareManager" should "find possible directions" in {
-    val sm = new SquareManager(/*randSquare*/board(13)(10), board)
+    val sm = new SquareManager(board)
     val directions = sm.possibleDirection
     Console.err.println(s"${directions.mkString(",")}")
+  }
+
+  "A SquareManager" should "find torpedo squares" in {
+    val torpedoSquares = new SquareManager(board).safeTorpedoSquares
+    Console.err.println(s"${torpedoSquares.mkString(",")}")
   }
 }
