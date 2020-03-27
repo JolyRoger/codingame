@@ -1,6 +1,6 @@
 package codingame.challenge.ocean
 
-import codingames.challenge.ocean.{Player, Square, SquareManager}
+import codingames.challenge.ocean.{Player, Square, MySquareManager}
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
 import scala.io.Source
@@ -37,13 +37,13 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   }
 
   "A SquareManager" should "find possible directions" in {
-    val sm = new SquareManager(board)
+    val sm = new MySquareManager(board)
     val directions = sm.possibleDirection
     Console.err.println(s"${directions.mkString(",")}")
   }
 
   "A SquareManager" should "find torpedo squares" in {
-    val torpedoSquares = new SquareManager(board).safeTorpedoSquares
+    val torpedoSquares = new MySquareManager(board).safeTorpedoSquares
     Console.err.println(s"${torpedoSquares.mkString(",")}")
   }
 }
