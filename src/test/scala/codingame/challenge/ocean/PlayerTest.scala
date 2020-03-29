@@ -9,7 +9,7 @@ import scala.util.Random
 class PlayerTest extends FlatSpec with BeforeAndAfter {
 
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "ocean/ocean0.txt"
+  val filename = "ocean/ocean1.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
@@ -47,14 +47,14 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
     Console.err.println(s"${torpedoSquares.mkString(",")}")
   }
 
-  "A SquareManager" should "return correct next square" in {
+  "An OppSquareManager" should "return correct next square" in {
     val myManager = new MySquareManager(board)
     val oppManager = new OppSquareManager(myManager.legalSquares, myManager.coordSquaresMap)
     val res = oppManager.nextSquare(myManager.coordSquaresMap((2,2)), "N")
     Console.err.println(s"$res")
   }
 
-  "A SquareManager" should "find legal enemy squares" in {
+  "An OppSquareManager" should "find legal move enemy squares" in {
     val path = Array("E", "E", "S", "E", "E", "E", "E", "E", "E", "E", "E", "E", "E", "N", "E", "E")
     val myManager = new MySquareManager(board)
     val oppManager = new OppSquareManager(myManager.legalSquares, myManager.coordSquaresMap)
@@ -67,18 +67,16 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
     }
 
     Console.err.println(s"${leg.keys.mkString(",")}")
+  }
 
-/*
-    val legalSquares0 = oppManager.processOpponentMove("MOVE N", oppLegalSquaresMap)
-    val legalSquares1 = oppManager.processOpponentMove("MOVE N", legalSquares0)
-    val legalSquares2 = oppManager.processOpponentMove("MOVE W", legalSquares1)
-    val legalSquares3 = oppManager.processOpponentMove("MOVE S", legalSquares2)
-    val legalSquares4 = oppManager.processOpponentMove("MOVE S", legalSquares3)
-    Console.err.println(s"legalSquares0=${legalSquares0.keys.mkString("")}")
-    Console.err.println(s"legalSquares1=${legalSquares1.keys.mkString("")}")
-    Console.err.println(s"legalSquares2=${legalSquares2.keys.mkString("")}")
-    Console.err.println(s"legalSquares3=${legalSquares3.keys.mkString("")}")
-    Console.err.println(s"legalSquares4=${legalSquares4.keys.mkString("")}")
-*/
+  "An OppSquareManager" should "find legal surface enemy squares" in {
+    val myManager = new MySquareManager(board)
+    val oppManager = new OppSquareManager(myManager.legalSquares, myManager.coordSquaresMap)
+    val oppLegalSquaresMap = myManager.legalSquares.map((_, List.empty[Square])).toMap
+    val moveWest = oppManager.processOpponentMove(s"MOVE E", oppLegalSquaresMap)
+    val moveWest2 = oppManager.processOpponentMove(s"MOVE E", moveWest)
+    val surface = oppManager.processOpponentSurface(s"SURFACE 1", moveWest2)
+    Console.err.println(s"MOVE::${moveWest2.keys.mkString(" ")}")
+    Console.err.println(s"SURF::${surface.keys.mkString(" ")}")
   }
 }

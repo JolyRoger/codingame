@@ -43,15 +43,17 @@ class OppSquareManager(legalSquares: Array[Square], coordSquaresMap: Map[(Int, I
 
   type OppPath = Map[Square, List[Square]]
 
-  val sector = Array ((for (x <- 0 until 5; y <- 0 until 5) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 5 until 10; y <- 0 until 5) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 10 until 15; y <- 0 until 5) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 0 until 5; y <- 5 until 10) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 5 until 10; y <- 5 until 10) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 10 until 15; y <- 5 until 10) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 0 until 5; y <- 10 until 15) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 5 until 10; y <- 10 until 15) yield coordSquaresMap(x,y)).toArray,
-                      (for (x <- 10 until 15; y <- 10 until 15) yield coordSquaresMap(x,y)).toArray)
+  val emptyOppPath = Map.empty[Square, List[Square]]
+
+  val sector = Array ((for (x <- 0 until 5; y <- 0 until 5) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 5 until 10; y <- 0 until 5) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 10 until 15; y <- 0 until 5) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 0 until 5; y <- 5 until 10) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 5 until 10; y <- 5 until 10) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 10 until 15; y <- 5 until 10) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 0 until 5; y <- 10 until 15) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 5 until 10; y <- 10 until 15) yield coordSquaresMap(x,y)).filter(_.water).toArray,
+                      (for (x <- 10 until 15; y <- 10 until 15) yield coordSquaresMap(x,y)).filter(_.water).toArray)
 
 
 
@@ -66,29 +68,19 @@ class OppSquareManager(legalSquares: Array[Square], coordSquaresMap: Map[(Int, I
 
   def processOpponentMove(opponentOrders: String, oppPath: OppPath) = {
     val Array(_, direction) = opponentOrders.split("\\s")
-    val tempres = oppPath.map {sqPath =>
+    oppPath.map {sqPath =>
       val ns = nextSquare(sqPath._1, direction)
       val nl = sqPath._1 :: sqPath._2
       (ns, nl)
-    }
-    val res = tempres.withFilter(sqMap => sqMap._1 match {
-      case Some(sq) => sq.water/* && !sqMap._2.contains(sq)*/
+    }.withFilter(sqMap => sqMap._1 match {
+      case Some(sq) => sq.water
       case None => false
     }).map(sqMap => (sqMap._1.get, sqMap._2))
-    res
   }
 
-  def processOpponentSurface(opponentOrders: String, oppLegalSquares: Array[Square]) = {
+  def processOpponentSurface(opponentOrders: String, oppPath: OppPath) = {
     val Array(_, sec) = opponentOrders.split("\\s")
-
-    oppLegalSquares.foreach(square => {
-      square.leftMoveNum = square.leftMoveNumInit
-      square.rightMoveNum = square.rightMoveNumInit
-      square.upMoveNum = square.upMoveNumInit
-      square.downMoveNum = square.downMoveNumInit
-    })
-
-    oppLegalSquares.intersect(sector(sec.toInt - 1))
+    oppPath.keys.toArray.intersect(sector(sec.toInt - 1)).map((_, List.empty[Square])).toMap
   }
 }
 
@@ -117,7 +109,6 @@ class MySquareManager(board: Array[Array[Square]]) {
   })
 
   myPosition.accessible = false
-
 
   private def setSearchIndices {
     for (y <- board.indices) {
@@ -188,6 +179,7 @@ object Player extends App {
   val myManager = new MySquareManager(board)
   val oppManager = new OppSquareManager(myManager.legalSquares, myManager.coordSquaresMap)
   val oppLegalSquaresMap = myManager.legalSquares.map((_, List.empty[Square])).toMap
+  var oppSquares = oppLegalSquaresMap
 
   board.foreach(bl => {
     bl.foreach(_.print)
@@ -204,8 +196,19 @@ object Player extends App {
     Console.err.println(s"sonarResult=$sonarResult")
     val opponentOrders = readLine
     Console.err.println(s"opponentOrders=$opponentOrders")
-    if (opponentOrders.startsWith("MOVE")) oppManager.processOpponentMove(opponentOrders, oppLegalSquaresMap)
-    else if (opponentOrders.startsWith("SURFACE")) oppManager.processOpponentSurface(opponentOrders, myManager.legalSquares)
+    val opponentOrdersArr = opponentOrders.split("\\|")
+
+    oppSquares = opponentOrdersArr.map { oo =>
+      val order = oo.trim
+      Console.err.println(s"ORDER: $order")
+      if (order.startsWith("MOVE")) oppManager.processOpponentMove(order, oppSquares)
+      else if (order.startsWith("SURFACE")) oppManager.processOpponentSurface(order, oppSquares)
+      else if (order.startsWith("TORPEDO")) oppManager.emptyOppPath
+      else if (order.startsWith("NA")) oppLegalSquaresMap
+      else oppManager.emptyOppPath
+    }.reduce(_ ++ _)
+
+    Console.err.println(s"MOVE::${oppSquares.keys.mkString(" ")}")
 
     val directions = myManager.possibleDirection
     val mainCommand = if (directions.isEmpty) "SURFACE" else s"MOVE ${directions(myManager.rand.nextInt(directions.length))} TORPEDO"
@@ -215,7 +218,8 @@ object Player extends App {
     } else if (mainCommand.startsWith("MOVE")) {
       s"${if (torpedoCooldown > 0) "" else {
         val torpedoSquares = myManager.safeTorpedoSquares
-        torpedoSquares.find(_ => true) match {
+        val nearOppCandidateCoord = torpedoSquares.intersect(oppSquares.keySet.map(sq => (sq.getX, sq.getY)))
+        nearOppCandidateCoord.find(_ => true) match {
           case Some(s) => {
             s"|TORPEDO ${s._1} ${s._2}"
           }

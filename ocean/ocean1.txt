@@ -1,12 +1,12 @@
 15 15 0
-...xxxxxxxxxxxx
-...xxxxxxxxxxxx
-...xxxxxxxxxxxx
+...xxxxxxxxx..x
+...xxxxxxxxx...
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
+xxxxxx...xxxxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
