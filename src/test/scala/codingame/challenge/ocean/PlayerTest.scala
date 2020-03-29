@@ -1,6 +1,6 @@
 package codingame.challenge.ocean
 
-import codingames.challenge.ocean.{Player, Square, MySquareManager}
+import codingames.challenge.ocean.{MySquareManager, OppSquareManager, Player, Square}
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
 import scala.io.Source
@@ -45,5 +45,40 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   "A SquareManager" should "find torpedo squares" in {
     val torpedoSquares = new MySquareManager(board).safeTorpedoSquares
     Console.err.println(s"${torpedoSquares.mkString(",")}")
+  }
+
+  "A SquareManager" should "return correct next square" in {
+    val myManager = new MySquareManager(board)
+    val oppManager = new OppSquareManager(myManager.legalSquares, myManager.coordSquaresMap)
+    val res = oppManager.nextSquare(myManager.coordSquaresMap((2,2)), "N")
+    Console.err.println(s"$res")
+  }
+
+  "A SquareManager" should "find legal enemy squares" in {
+    val path = Array("E", "E", "S", "E", "E", "E", "E", "E", "E", "E", "E", "E", "E", "N", "E", "E")
+    val myManager = new MySquareManager(board)
+    val oppManager = new OppSquareManager(myManager.legalSquares, myManager.coordSquaresMap)
+    val oppLegalSquaresMap = myManager.legalSquares.map((_, List.empty[Square])).toMap
+
+    var leg = oppLegalSquaresMap
+
+    for (direction <- path) {
+      leg = oppManager.processOpponentMove(s"MOVE $direction", leg)
+    }
+
+    Console.err.println(s"${leg.keys.mkString(",")}")
+
+/*
+    val legalSquares0 = oppManager.processOpponentMove("MOVE N", oppLegalSquaresMap)
+    val legalSquares1 = oppManager.processOpponentMove("MOVE N", legalSquares0)
+    val legalSquares2 = oppManager.processOpponentMove("MOVE W", legalSquares1)
+    val legalSquares3 = oppManager.processOpponentMove("MOVE S", legalSquares2)
+    val legalSquares4 = oppManager.processOpponentMove("MOVE S", legalSquares3)
+    Console.err.println(s"legalSquares0=${legalSquares0.keys.mkString("")}")
+    Console.err.println(s"legalSquares1=${legalSquares1.keys.mkString("")}")
+    Console.err.println(s"legalSquares2=${legalSquares2.keys.mkString("")}")
+    Console.err.println(s"legalSquares3=${legalSquares3.keys.mkString("")}")
+    Console.err.println(s"legalSquares4=${legalSquares4.keys.mkString("")}")
+*/
   }
 }
