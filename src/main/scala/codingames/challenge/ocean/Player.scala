@@ -1,21 +1,65 @@
 package codingames.challenge.ocean
 
 import math._
+import scala.collection.mutable
 import scala.io.Source
 import scala.util._
 import scala.io.StdIn._
 
+class Graph(board: Array[Array[Square]], flattenBoard: Array[Square]) {
+
+  def allClosest(square: Square) = {
+    val x = square.getX
+    val y = square.getY
+
+    List((x-1, y), (x, y-1), (x+1, y), (x, y+1)).withFilter { xy =>
+      xy._1 >= 0 && xy._2 >= 0 && xy._1 < 15 && xy._2 < 15 && board(xy._2)(xy._1).water
+    }.map( xy => board(xy._2)(xy._1))
+  }
+
+  val adj = (for (row <- 0 until 15; col <- 0 until 15; if board(col)(row).water) yield (board(col)(row), allClosest(board(col)(row)))).toMap
+//    adj(toNumber((col, row))) = allClosest(col, row)
+
+  def allDistance(from: Int) = {
+    val (_, dist) = bfs(flattenBoard(from))
+    dist
+  }
+
+  def distance(from: Int, to: Int) = {
+    val (_, dist) = bfs(flattenBoard(from))
+    dist(to)
+  }
+
+  def bfs(s: Square) = {
+    val N = 15 * 15
+    val marked = Array.fill[Boolean](N)(false)
+    val edgeTo = Array.fill[Int](N)(Int.MaxValue)
+    val distTo = Array.fill[Int](N)(Int.MaxValue)
+    val q = mutable.Queue[Square]()
+    var i = 0
+
+    q.enqueue(s)
+    marked(s.index) = true
+    distTo(s.index) = 0
+
+    while (q.nonEmpty) {
+      val v = q.dequeue
+      i = i + 1
+      adj(v).filterNot(sq => marked(sq.index)).foreach(
+        w => {
+          q.enqueue(w)
+          marked(w.index) = true
+          edgeTo(w.index) = v.index
+          distTo(w.index) = distTo(v.index) + 1
+        }
+      )
+    }
+    (edgeTo, distTo)
+  }
+}
+
 class Square(x: Int, y: Int, sym: Char) {
-  var leftMoveNum: Int = -1
-  var rightMoveNum: Int = -1
-  var upMoveNum: Int = -1
-  var downMoveNum: Int = -1
-
-  var leftMoveNumInit: Int = -1
-  var rightMoveNumInit: Int = -1
-  var upMoveNumInit: Int = -1
-  var downMoveNumInit: Int = -1
-
+  val index = y * 15 + x
   val getX = x
   val getY = y
   val getSym = sym
@@ -36,33 +80,34 @@ class Square(x: Int, y: Int, sym: Char) {
   }
 
   def print = Console.err.print(s"$sym")
-  override def toString = s"($x,$y)$sym"
+  override def toString = index.toString
+//  override def toString = s"($x,$y)$sym"
 }
 
-class OppSquareManager(legalSquares: Array[Square], coordSquaresMap: Map[(Int, Int), Square]) {
+class OppSquareManager(legalSquares: Array[Square], flattenBoard: Array[Square]) {
 
   type OppPath = Map[Square, List[Square]]
 
   val emptyOppPath = Map.empty[Square, List[Square]]
 
-  val sector = Array ((for (x <- 0 until 5; y <- 0 until 5) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 5 until 10; y <- 0 until 5) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 10 until 15; y <- 0 until 5) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 0 until 5; y <- 5 until 10) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 5 until 10; y <- 5 until 10) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 10 until 15; y <- 5 until 10) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 0 until 5; y <- 10 until 15) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 5 until 10; y <- 10 until 15) yield coordSquaresMap(x,y)).filter(_.water).toArray,
-                      (for (x <- 10 until 15; y <- 10 until 15) yield coordSquaresMap(x,y)).filter(_.water).toArray)
+  val sector = Array ((for (x <- 0 until 5; y <- 0 until 5) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 5 until 10; y <- 0 until 5) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 10 until 15; y <- 0 until 5) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 0 until 5; y <- 5 until 10) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 5 until 10; y <- 5 until 10) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 10 until 15; y <- 5 until 10) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 0 until 5; y <- 10 until 15) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 5 until 10; y <- 10 until 15) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
+                      (for (x <- 10 until 15; y <- 10 until 15) yield flattenBoard(y * 15 + x)).filter(_.water).toArray)
 
 
 
   def nextSquare(currentSquare: Square, direction: String) = {
     direction match {
-      case "N" => coordSquaresMap.get((currentSquare.getX, currentSquare.getY - 1))
-      case "S" => coordSquaresMap.get((currentSquare.getX, currentSquare.getY + 1))
-      case "W" => coordSquaresMap.get((currentSquare.getX - 1, currentSquare.getY))
-      case "E" => coordSquaresMap.get((currentSquare.getX + 1, currentSquare.getY))
+      case "N" => Try(flattenBoard((currentSquare.getY - 1) * 15 + currentSquare.getX))
+      case "S" => Try(flattenBoard((currentSquare.getY + 1) * 15 + currentSquare.getX))
+      case "W" => Try(flattenBoard((currentSquare.getY) * 15 + currentSquare.getX - 1))
+      case "E" => Try(flattenBoard((currentSquare.getY) * 15 + currentSquare.getX + 1))
     }
   }
 
@@ -73,8 +118,8 @@ class OppSquareManager(legalSquares: Array[Square], coordSquaresMap: Map[(Int, I
       val nl = sqPath._1 :: sqPath._2
       (ns, nl)
     }.withFilter(sqMap => sqMap._1 match {
-      case Some(sq) => sq.water
-      case None => false
+      case Success(sq) => sq.water
+      case Failure(_) => false
     }).map(sqMap => (sqMap._1.get, sqMap._2))
   }
 
@@ -84,58 +129,20 @@ class OppSquareManager(legalSquares: Array[Square], coordSquaresMap: Map[(Int, I
   }
 }
 
-class MySquareManager(board: Array[Array[Square]]) {
-  val flattenBoard = board.flatten
-  val coordSquaresMap = flattenBoard.map(square => ((square.getX, square.getY), square)).toMap
-  val legalSquares = flattenBoard.filter(_.water)
+class MySquareManager(board: Array[Array[Square]],
+                      flattenBoard: Array[Square],
+                      legalSquares: Array[Square]) {
   val rand = new Random(System.currentTimeMillis)
 //  var myPosition = coordSquaresMap((0, 8))
   var myPosition = legalSquares(rand.nextInt(legalSquares.length))
   Console.err.println(s"my position=$myPosition")
 
-  val torpedoSquareMap = legalSquares.map(square => (square, square.allTorpedoSquares.filter(coordSquaresMap(_).water))).toMap
+  val torpedoSquareMap = legalSquares.map(square => (square, square.allTorpedoSquares.filter(xy => flattenBoard(xy._2 * 15 + xy._1).water))).toMap
   val safeTorpedoSquareMap = torpedoSquareMap.map(kv => (kv._1, kv._2.filter { xy =>
-    (Math.abs(kv._1.getX - xy._1) > 1 || Math.abs(kv._1.getY - xy._2) > 1) && coordSquaresMap(xy).water
+    (Math.abs(kv._1.getX - xy._1) > 1 || Math.abs(kv._1.getY - xy._2) > 1) && flattenBoard(xy._2 * 15 + xy._1).water
   }))
 
-  setSearchIndices
-
-//  legalSquares.foreach(square => Console.err.println(s"$square : ${square.leftMoveNum} ${square.upMoveNum} ${square.rightMoveNum} ${square.downMoveNum}"))
-  legalSquares.foreach(square => {
-    square.leftMoveNumInit = square.leftMoveNum
-    square.rightMoveNumInit = square.rightMoveNum
-    square.upMoveNumInit = square.upMoveNum
-    square.downMoveNumInit = square.downMoveNum
-  })
-
   myPosition.accessible = false
-
-  private def setSearchIndices {
-    for (y <- board.indices) {
-      var indexHor = -1
-      var indexVer = -1
-      for (x <- board(y).indices) {
-        val squareHor = board(y)(x)
-        val squareVer = board(x)(y)
-        indexHor = if (squareHor.water) indexHor + 1 else -1
-        indexVer = if (squareVer.water) indexVer + 1 else -1
-        squareHor.leftMoveNum = indexHor
-        squareVer.upMoveNum = indexVer
-      }
-
-      indexHor = -1
-      indexVer = -1
-
-      for (x <- board(y).indices.reverse) {
-        val squareHor = board(y)(x)
-        val squareVer = board(x)(y)
-        indexHor = if (squareHor.water) indexHor + 1 else -1
-        indexVer = if (squareVer.water) indexVer + 1 else -1
-        squareHor.rightMoveNum = indexHor
-        squareVer.downMoveNum = indexVer
-      }
-    }
-  }
 
   def safeTorpedoSquares = safeTorpedoSquareMap(myPosition)
 
@@ -153,7 +160,7 @@ class MySquareManager(board: Array[Array[Square]]) {
 
   def possibleDirection = {
     val candidates = Array((myPosition.getX + 1, myPosition.getY, 'E'), (myPosition.getX - 1, myPosition.getY, 'W'), (myPosition.getX, myPosition.getY + 1, 'S'), (myPosition.getX, myPosition.getY - 1, 'N'))
-    candidates.filter(xy => xy._1 >= 0 && xy._1 < 15 &&
+    candidates.withFilter(xy => xy._1 >= 0 && xy._1 < 15 &&
                             xy._2 >= 0 && xy._2 < 15 &&
                             board(xy._2)(xy._1).accessible)
       .map(_._3)
@@ -176,9 +183,16 @@ object Player extends App {
   val boardSym = (for (i <- 0 until height) yield readLine).map(_.toCharArray)
   val board = boardSym.zipWithIndex.map(arrIndex => arrIndex._1.zipWithIndex.map(
     symIndex => new Square(symIndex._2, arrIndex._2, symIndex._1))).toArray
-  val myManager = new MySquareManager(board)
-  val oppManager = new OppSquareManager(myManager.legalSquares, myManager.coordSquaresMap)
-  val oppLegalSquaresMap = myManager.legalSquares.map((_, List.empty[Square])).toMap
+  val flattenBoard = board.flatten
+  val squareArray = flattenBoard
+  val coordSquaresMap = flattenBoard.map(square => ((square.getX, square.getY), square)).toMap
+  val legalSquares = flattenBoard.filter(_.water)
+
+  val myManager = new MySquareManager(board, flattenBoard, legalSquares)
+  val oppManager = new OppSquareManager(legalSquares, flattenBoard)
+  val graph = new Graph(board, flattenBoard)
+
+  val oppLegalSquaresMap = legalSquares.map((_, List.empty[Square])).toMap
   var oppSquares = oppLegalSquaresMap
 
   board.foreach(bl => {
@@ -186,7 +200,7 @@ object Player extends App {
     Console.err.println})
 
   println(s"${myManager.myPosition.getX} ${myManager.myPosition.getY}")
-
+//  println("0 6")
 
   while (true) {
     val Array(x, y, myLife, oppLife, torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown) = (readLine split " ").map(_.toInt)
@@ -229,5 +243,6 @@ object Player extends App {
     }
 
     println(s"$mainCommand$dopCommand")
+//    println(s"MOVE E SILENCE TORPEDO SONAR")
   }
 }
