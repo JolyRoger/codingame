@@ -1,8 +1,8 @@
 15 15 0
 ...xxxxxxxxx..x
-...xxxxxxxxx...
-xxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxx
+.x.xxxxxxxxx...
+.x.xxxxxxxxxxxx
+...xxxxxxxxxxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx

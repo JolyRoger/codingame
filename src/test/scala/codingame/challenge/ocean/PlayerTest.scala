@@ -82,8 +82,15 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
 
   "A Graph" should "find path for all squares" in {
     val graph = new Graph(board, flattenBoard)
-    val dist = graph.allDistance(0)
-    Console.err.println(s"${dist.mkString(" ")}")
+    val squareNum = 0
+    val dist = graph.allDistance(squareNum)
+    val filteredDist = dist.filter(_ < Int.MaxValue)
+    val square = flattenBoard(squareNum)
+
+    dist.zipWithIndex.filter(_._1 < Int.MaxValue).foreach(a => {
+      Console.err.println(s"Distance from (${square.getX},${square.getY}) to (${flattenBoard(a._2).getX},${flattenBoard(a._2).getY}) is " +
+        s"${if (a._1 < Int.MaxValue) a._1 else "unreachable"}")
+    })
   }
 
 }

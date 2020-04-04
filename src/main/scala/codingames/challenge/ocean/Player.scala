@@ -1,4 +1,4 @@
-package codingames.challenge.ocean
+//package codingames.challenge.ocean
 
 import math._
 import scala.collection.mutable
@@ -80,11 +80,16 @@ class Square(x: Int, y: Int, sym: Char) {
   }
 
   def print = Console.err.print(s"$sym")
-  override def toString = index.toString
-//  override def toString = s"($x,$y)$sym"
+//  override def toString = index.toString
+  override def toString = s"($x,$y)$sym"
 }
 
-class OppSquareManager(legalSquares: Array[Square], flattenBoard: Array[Square]) {
+abstract class SquareManager(legalSquares: Array[Square], flattenBoard: Array[Square]) {
+  val torpedoSquareMap = legalSquares.map(square => (square, square.allTorpedoSquares.filter(xy => flattenBoard(xy._2 * 15 + xy._1).water))).toMap
+}
+
+class OppSquareManager(legalSquares: Array[Square], flattenBoard: Array[Square]) extends SquareManager(legalSquares, flattenBoard) {
+
 
   type OppPath = Map[Square, List[Square]]
 
@@ -111,11 +116,11 @@ class OppSquareManager(legalSquares: Array[Square], flattenBoard: Array[Square])
     }
   }
 
-  def processOpponentMove(opponentOrders: String, oppPath: OppPath) = {
+  def processOpponentMove(opponentOrders: String, oppPath: Set[Square]) = {
     val Array(_, direction) = opponentOrders.split("\\s")
     oppPath.map {sqPath =>
       val ns = nextSquare(sqPath._1, direction)
-      val nl = sqPath._1 :: sqPath._2
+      val nl = sqPath._1
       (ns, nl)
     }.withFilter(sqMap => sqMap._1 match {
       case Success(sq) => sq.water
@@ -123,21 +128,21 @@ class OppSquareManager(legalSquares: Array[Square], flattenBoard: Array[Square])
     }).map(sqMap => (sqMap._1.get, sqMap._2))
   }
 
-  def processOpponentSurface(opponentOrders: String, oppPath: OppPath) = {
+  def processOpponentSurface(opponentOrders: String, oppPath: Set[Square]) = {
     val Array(_, sec) = opponentOrders.split("\\s")
-    oppPath.keys.toArray.intersect(sector(sec.toInt - 1)).map((_, List.empty[Square])).toMap
+    oppPath.toArray.intersect(sector(sec.toInt - 1)).map((_, List.empty[Square])).toMap
   }
 }
 
 class MySquareManager(board: Array[Array[Square]],
-                      flattenBoard: Array[Square],
-                      legalSquares: Array[Square]) {
+                      legalSquares: Array[Square],
+                      flattenBoard: Array[Square]) extends SquareManager(legalSquares, flattenBoard) {
+
   val rand = new Random(System.currentTimeMillis)
-//  var myPosition = coordSquaresMap((0, 8))
   var myPosition = legalSquares(rand.nextInt(legalSquares.length))
   Console.err.println(s"my position=$myPosition")
 
-  val torpedoSquareMap = legalSquares.map(square => (square, square.allTorpedoSquares.filter(xy => flattenBoard(xy._2 * 15 + xy._1).water))).toMap
+
   val safeTorpedoSquareMap = torpedoSquareMap.map(kv => (kv._1, kv._2.filter { xy =>
     (Math.abs(kv._1.getX - xy._1) > 1 || Math.abs(kv._1.getY - xy._2) > 1) && flattenBoard(xy._2 * 15 + xy._1).water
   }))
@@ -163,7 +168,7 @@ class MySquareManager(board: Array[Array[Square]],
     candidates.withFilter(xy => xy._1 >= 0 && xy._1 < 15 &&
                             xy._2 >= 0 && xy._2 < 15 &&
                             board(xy._2)(xy._1).accessible)
-      .map(_._3)
+      .map(data => (board(data._2)(data._1), data._3))
   }
 }
 
@@ -188,7 +193,7 @@ object Player extends App {
   val coordSquaresMap = flattenBoard.map(square => ((square.getX, square.getY), square)).toMap
   val legalSquares = flattenBoard.filter(_.water)
 
-  val myManager = new MySquareManager(board, flattenBoard, legalSquares)
+  val myManager = new MySquareManager(board, legalSquares, flattenBoard)
   val oppManager = new OppSquareManager(legalSquares, flattenBoard)
   val graph = new Graph(board, flattenBoard)
 
@@ -212,20 +217,22 @@ object Player extends App {
     Console.err.println(s"opponentOrders=$opponentOrders")
     val opponentOrdersArr = opponentOrders.split("\\|")
 
-    oppSquares = opponentOrdersArr.map { oo =>
-      val order = oo.trim
+    oppSquares = opponentOrdersArr.map { oppOrder =>
+      val order = oppOrder.trim
       Console.err.println(s"ORDER: $order")
       if (order.startsWith("MOVE")) oppManager.processOpponentMove(order, oppSquares)
       else if (order.startsWith("SURFACE")) oppManager.processOpponentSurface(order, oppSquares)
-      else if (order.startsWith("TORPEDO")) oppManager.emptyOppPath
+      else if (order.startsWith("SILENCE")) oppSquares
+      else if (order.startsWith("TORPEDO")) oppSquares
       else if (order.startsWith("NA")) oppLegalSquaresMap
-      else oppManager.emptyOppPath
-    }.reduce(_ ++ _)
+      else oppSquares
+    }.reduce((a,b) => a.keySet.intersect(b.keySet))
 
     Console.err.println(s"MOVE::${oppSquares.keys.mkString(" ")}")
 
     val directions = myManager.possibleDirection
-    val mainCommand = if (directions.isEmpty) "SURFACE" else s"MOVE ${directions(myManager.rand.nextInt(directions.length))} TORPEDO"
+//    val nextMove = directions.map(_._1).minBy(_.)
+    val mainCommand = if (directions.isEmpty) "SURFACE" else s"MOVE ${directions(myManager.rand.nextInt(directions.length))._2} TORPEDO"
 
     val dopCommand = if (mainCommand == "SURFACE") {
       myManager.surface
