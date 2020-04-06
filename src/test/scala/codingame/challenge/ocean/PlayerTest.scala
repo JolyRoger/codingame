@@ -1,7 +1,7 @@
 package codingame.challenge.ocean
 
 import codingames.challenge.ocean.Player
-import codingames.challenge.ocean.Player.{Graph, MySquareManager, OppSquareManager, PathInfo, Square}
+import codingames.challenge.ocean.Player.{Graph, MySquareManager, OppSquareManager, PathInfo, Square, oppSquares}
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
 import scala.io.Source
@@ -82,11 +82,18 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
 
   "A OppSquareManager" should "process silence command" in {
     val oppLegalSquaresMap = legalSquares.map((_, List.empty[PathInfo])).toMap
-    val surfaceMove = oppManager.processOpponentSurface(s"SURFACE 1", oppLegalSquaresMap)
-    val moveMove = oppManager.processOpponentMove(s"MOVE E", surfaceMove)
+    val surfaceMove = oppManager.processOpponentSurface(s"SURFACE 9", oppLegalSquaresMap)
+    val moveMove = oppManager.processOpponentMove(s"MOVE W", surfaceMove)
     val silenceMove = oppManager.processOpponentSilence(moveMove)
-    Console.err.println(s"surface::${surfaceMove.mkString(" ")}")
-    Console.err.println(s"silence::${silenceMove.mkString(" ")}")
+
+    Console.err.println(s"silenceMove.size=${silenceMove.size}")
+
+    surfaceMove.keys.toList.sortBy(_.index).foreach(Console.err.print)
+    Console.err.println
+    silenceMove.keys.toList.sortBy(_.index).foreach(Console.err.print)
+
+//    Console.err.println(s"surface::${surfaceMove.mkString(" ")}")
+//    Console.err.println(s"silence::${silenceMove.mkString(" ")}")
   }
 
   "A Graph" should "find path for all squares" in {

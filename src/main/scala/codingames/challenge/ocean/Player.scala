@@ -1,4 +1,4 @@
-//package codingames.challenge.ocean
+package codingames.challenge.ocean
 
 import math._
 import scala.collection.mutable
@@ -125,7 +125,8 @@ object Player extends App {
     def takeSquares(currentSquare: OppPathUnit, direction: String) = {
       (for (step <- 1 to 4) yield {
           takeRawSquare(currentSquare._1, direction, step)
-      }).takeWhile(_.isSuccess).map(successSquare => (successSquare.get, ((direction, currentSquare._1) :: currentSquare._2))).toSet
+      }).takeWhile(square => square.isSuccess && square.get.water).map(successSquare =>
+        (successSquare.get, (direction, currentSquare._1) :: currentSquare._2)).toSet
     }
 
     def processOpponentMove(opponentOrders: String, oppPath: OppPath) = {
@@ -147,7 +148,7 @@ object Player extends App {
 
     def processOpponentSilence(oppSquares: OppPath) = {
       val extraSquares = oppSquares.flatMap(squarePath => {
-        val lastMove = squarePath._2.head._1
+        val lastMove = squarePath._2.headOption.getOrElse(("", null))._1
         val r = (Set("N", "S", "W", "E") - lastMove).flatMap(dir => takeSquares(squarePath, oppositeDirection(dir)))
         r
   //      takeSquares(square, "N") ++ takeSquares(square, "S") ++ takeSquares(square, "W") ++ takeSquares(square, "E")
@@ -251,18 +252,22 @@ object Player extends App {
     }.reduce((a,b) => a ++ b)   // FIXME
 
     if (oppSquares.isEmpty) Console.err.println("!!!!!!!!!!ERROR!!!!!!!!!!!!!")
+    Console.err.println(s"oppSquares.size=${oppSquares.size}")
 
-    oppSquares.foreach(s => Console.err.println(s"${s._1}"))
+    oppSquares.keys.toList.sortBy(_.index).foreach(Console.err.print)
 
     val directions = myManager.possibleDirection
 //    val nextMove = directions.map(_._1).minBy(_.)
-    val mainCommand = if (directions.isEmpty) "SURFACE" else s"MOVE ${directions(myManager.rand.nextInt(directions.length))._2} TORPEDO"
+    val (mainCommand, newpos) = if (directions.isEmpty) ("SURFACE", myManager.myPosition) else {
+      val newpos = directions(myManager.rand.nextInt(directions.length))
+      (s"MOVE ${newpos._2} TORPEDO", newpos._1)
+    }
 
     val dopCommand = if (mainCommand == "SURFACE") {
       myManager.surface
     } else if (mainCommand.startsWith("MOVE")) {
       s"${if (torpedoCooldown > 0) "" else {
-        val torpedoSquares = myManager.safeTorpedoSquares
+        val torpedoSquares = myManager.safeTorpedoSquareMap(newpos)
         val nearOppCandidateCoord = torpedoSquares.intersect(oppSquares.keySet.map(sq => (sq.getX, sq.getY)))
         nearOppCandidateCoord.find(_ => true) match {
           case Some(s) => {
