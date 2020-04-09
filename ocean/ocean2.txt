@@ -1,7 +1,7 @@
 15 15 0
-xxxxxxx.xxxxxxx
-xxxxxxx....xxxx
-xxxxxxxxxxxxxxx
+...xxxx.xxxxxxx
+...xxxx....xxxx
+...........xxxx
 xxxxxxxxxx.xxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxx
@@ -14,6 +14,6 @@ xxxxxxxxxx.xxxx
 xxxxxxxxxxxxxxx
 xxxxxxxxxx.xxxx
 xxxxxxx.x...xxx
-14 10 6 6 0 0 0 0
+1 1 6 6 0 0 0 0
 NA
-MOVE W|SILENCE
+SURFACE 1

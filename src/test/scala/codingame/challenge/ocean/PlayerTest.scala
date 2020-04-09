@@ -10,7 +10,7 @@ import scala.util.Random
 class PlayerTest extends FlatSpec with BeforeAndAfter {
 
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "ocean/ocean1.txt"
+  val filename = "ocean/ocean0.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
@@ -99,8 +99,7 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   "A Graph" should "find path for all squares" in {
     val graph = new Graph(board, flattenBoard)
     val squareNum = 0
-    val dist = graph.allDistance(squareNum)
-    val filteredDist = dist.filter(_ < Int.MaxValue)
+    val (edge, dist) = graph.allDistance(squareNum, _.water)
     val square = flattenBoard(squareNum)
 
     dist.zipWithIndex.filter(_._1 < Int.MaxValue).foreach(a => {
