@@ -1,7 +1,7 @@
 package codingame.challenge.ocean
 
 import codingames.challenge.ocean.Player
-import codingames.challenge.ocean.Player.{Graph, MySquareManager, OppSquareManager, PathInfo, Square, oppSquares}
+import codingames.challenge.ocean.Player.{MySquareManager, OppSquareManager, PathInfo, Square, oppSquares}
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
 import scala.io.Source
@@ -10,7 +10,7 @@ import scala.util.Random
 class PlayerTest extends FlatSpec with BeforeAndAfter {
 
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "ocean/ocean0.txt"
+  val filename = "ocean/ocean4.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
@@ -29,7 +29,7 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   val legalSquares = flattenBoard.filter(_.water)
 
   val myManager = new MySquareManager(board, legalSquares, flattenBoard)
-  val oppManager = new OppSquareManager(legalSquares, flattenBoard)
+  val oppManager = new OppSquareManager(board, legalSquares, flattenBoard)
 
   board.foreach(bl => {
     bl.foreach(_.print)
@@ -55,8 +55,45 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   }
 
   "An OppSquareManager" should "return correct next square" in {
-    val res = oppManager.nextRawSquare(coordSquaresMap((2,2)), "N")
+    val res = oppManager.nextRawSquare(coordSquaresMap((2,2)))
     Console.err.println(s"$res")
+  }
+
+  "An OppSquareManager" should "find legal move enemy squares 2" in {
+//    [7,0].[8,0].[9,0].[10,0].[11,0].[12,0].[13,0].[14,0].[0,1].[13,1].[14,1].[13,2].[14,2].[10,3].[11,3].[12,3].[13,3].[14,3].[0,4].[11,4].[12,4].[13,4].[14,4].[0,5].[11,5].[12,5].[13,5].[14,5].[0,6].
+    val ls = Array(
+      coordSquaresMap((7,0)),
+      coordSquaresMap((8,0)),
+      coordSquaresMap((9,0)),
+      coordSquaresMap((10,0)),
+      coordSquaresMap((11,0)),
+      coordSquaresMap((12,0)),
+      coordSquaresMap((13,0)),
+      coordSquaresMap((14,0)),
+      coordSquaresMap((0,1)),
+      coordSquaresMap((13,1)),
+      coordSquaresMap((14,1)),
+      coordSquaresMap((13,2)),
+      coordSquaresMap((14,2)),
+      coordSquaresMap((10,3)),
+      coordSquaresMap((11,3)),
+      coordSquaresMap((12,3)),
+      coordSquaresMap((13,3)),
+      coordSquaresMap((14,3)),
+      coordSquaresMap((0,4)),
+      coordSquaresMap((11,4)),
+      coordSquaresMap((12,4)),
+      coordSquaresMap((13,4)),
+      coordSquaresMap((14,4)),
+      coordSquaresMap((0,5)),
+      coordSquaresMap((11,5)),
+      coordSquaresMap((12,5)),
+      coordSquaresMap((13,5)),
+      coordSquaresMap((14,5)),
+      coordSquaresMap((0,6))
+    ).map(s => (s, List.empty[(String, Square)])).toMap
+    val res = oppManager.processOpponentMove(s"MOVE W", ls)
+    res.keys.toList.sortBy(_.index).foreach(Console.err.println)
   }
 
   "An OppSquareManager" should "find legal move enemy squares" in {
@@ -95,7 +132,7 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
 //    Console.err.println(s"surface::${surfaceMove.mkString(" ")}")
 //    Console.err.println(s"silence::${silenceMove.mkString(" ")}")
   }
-
+/*
   "A Graph" should "find path for all squares" in {
     val graph = new Graph(board, flattenBoard)
     val squareNum = 0
@@ -107,5 +144,9 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
         s"${if (a._1 < Int.MaxValue) a._1 else "unreachable"}")
     })
   }
+
+  "A test" should "run" in {
+    Console.err.println(s"aaa")
+  }*/
 
 }

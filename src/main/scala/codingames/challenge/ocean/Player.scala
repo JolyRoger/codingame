@@ -1,8 +1,6 @@
-package codingames.challenge.ocean
+//package codingames.challenge.ocean
 
 import math._
-import scala.annotation.tailrec
-import scala.collection.mutable
 import scala.io.Source
 import scala.util._
 import scala.io.StdIn._
@@ -12,74 +10,6 @@ object Player extends App {
   type PathInfo = (String, Square)
   type OppPathUnit = (Square, List[PathInfo])
   type OppPath = Map[Square, List[PathInfo]]
-
-  class Graph(board: Array[Array[Square]], flattenBoard: Array[Square]) {
-
-    def allClosest(square: Square, valid: Square => Boolean) = {
-      val x = square.getX
-      val y = square.getY
-
-      List((x-1, y), (x, y-1), (x+1, y), (x, y+1)).withFilter { xy =>
-        xy._1 >= 0 && xy._2 >= 0 && xy._1 < 15 && xy._2 < 15 && valid(board(xy._2)(xy._1))
-      }.map( xy => board(xy._2)(xy._1))
-    }
-
-  //    adj(toNumber((col, row))) = allClosest(col, row)
-
-    def allDistance(from: Int, valid: Square => Boolean) = {
-      val adj = (for (row <- 0 until 15; col <- 0 until 15; if valid(board(col)(row))) yield
-        (board(col)(row), allClosest(board(col)(row), valid))).toMap
-      val fromSquare = flattenBoard(from)
-      bfs(fromSquare, adj + (fromSquare -> allClosest(fromSquare, valid)))
-    }
-
-    def distance(from: Int, to: Int) = {
-      val adj = (for (row <- 0 until 15; col <- 0 until 15; if valid(board(col)(row))) yield
-        (board(col)(row), allClosest(board(col)(row), valid))).toMap
-      val fromSquare = flattenBoard(from)
-      val (edge, dist) = bfs(fromSquare, adj + (fromSquare -> allClosest(fromSquare, valid)))
-      dist(to)
-    }
-
-    def bfs(s: Square, adj: Map[Square, List[Square]]) = {
-      val N = 15 * 15
-      val marked = Array.fill[Boolean](N)(false)
-      val edgeTo = Array.fill[Int](N)(Int.MaxValue)
-      val distTo = Array.fill[Int](N)(Int.MaxValue)
-      val q = mutable.Queue[Square]()
-      var i = 0
-
-      q.enqueue(s)
-      marked(s.index) = true
-      distTo(s.index) = 0
-
-      while (q.nonEmpty) {
-        val v = q.dequeue
-        i = i + 1
-        adj(v).filterNot(sq => marked(sq.index)).foreach(
-          w => {
-            q.enqueue(w)
-            marked(w.index) = true
-            edgeTo(w.index) = v.index
-            distTo(w.index) = distTo(v.index) + 1
-          }
-        )
-      }
-      (edgeTo, distTo)
-    }
-
-    def path(_from: Int, _to: Int, edgeTo: Array[Int]): List[Int] = {
-      var from = _from
-      var p = List(from)
-
-      while (from != _to) {
-        from = edgeTo(from)
-        p = from :: p
-      }
-      p
-    }
-
-  }
 
   class Square(x: Int, y: Int, sym: Char) {
     val index = y * 15 + x
@@ -111,7 +41,7 @@ object Player extends App {
     val torpedoSquareMap = legalSquares.map(square => (square, square.allTorpedoSquares.filter(xy => flattenBoard(xy._2 * 15 + xy._1).water))).toMap
   }
 
-  class OppSquareManager(legalSquares: Array[Square], flattenBoard: Array[Square]) extends SquareManager(legalSquares, flattenBoard) {
+  class OppSquareManager(board: Array[Array[Square]], legalSquares: Array[Square], flattenBoard: Array[Square]) extends SquareManager(legalSquares, flattenBoard) {
     val oppositeDirection = Map("S" -> "N", "N" -> "S", "W" -> "E", "E" -> "W")
     val emptyOppPath = Map.empty[Square, List[Square]]
     val sector = Array ((for (x <- 0 until 5; y <- 0 until 5) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
@@ -124,36 +54,52 @@ object Player extends App {
                         (for (x <- 5 until 10; y <- 10 until 15) yield flattenBoard(y * 15 + x)).filter(_.water).toArray,
                         (for (x <- 10 until 15; y <- 10 until 15) yield flattenBoard(y * 15 + x)).filter(_.water).toArray)
 
-    def nextRawSquare(currentSquare: Square, direction: String) = {
-      takeRawSquare(currentSquare, direction, 1)
+    def nextRawSquare(square: Square) = {
+      Set(
+        Try(board(square.getY - 1)(square.getX)),
+        Try(board(square.getY - 1)(square.getX + 1)),
+        Try(board(square.getY - 1)(square.getX - 1)),
+        Try(board(square.getY + 1)(square.getX)),
+        Try(board(square.getY + 1)(square.getX + 1)),
+        Try(board(square.getY + 1)(square.getX - 1)),
+        Try(board(square.getY)(square.getX - 1)),
+        Try(board(square.getY)(square.getX + 1)),
+      ).collect {
+        case t if t.isSuccess => t.get
+      }
     }
 
-    def takeRawSquare(currentSquare: Square, direction: String, step: Int) = {
+    def nextRawSquareTry(currentSquare: Square, direction: String) = {
+      takeRawSquareTry(currentSquare, direction, 1)
+    }
+
+    def takeRawSquareTry(currentSquare: Square, direction: String, step: Int) = {
       direction match {
-        case "N" => Try(flattenBoard((currentSquare.getY - step) * 15 + currentSquare.getX))
-        case "S" => Try(flattenBoard((currentSquare.getY + step) * 15 + currentSquare.getX))
-        case "W" => Try(flattenBoard((currentSquare.getY) * 15 + currentSquare.getX - step))
-        case "E" => Try(flattenBoard((currentSquare.getY) * 15 + currentSquare.getX + step))
+        case "N" => Try(board(currentSquare.getY - step)(currentSquare.getX))
+        case "S" => Try(board(currentSquare.getY + step)(currentSquare.getX))
+        case "W" => Try(board(currentSquare.getY)(currentSquare.getX - step))
+        case "E" => Try(board(currentSquare.getY)(currentSquare.getX + step))
       }
     }
 
     def takeSquares(currentSquare: OppPathUnit, direction: String) = {
       (for (step <- 1 to 4) yield {
-          takeRawSquare(currentSquare._1, direction, step)
+          takeRawSquareTry(currentSquare._1, direction, step)
       }).takeWhile(square => square.isSuccess && square.get.water).map(successSquare =>
         (successSquare.get, (direction, currentSquare._1) :: currentSquare._2)).toSet
     }
 
     def processOpponentMove(opponentOrders: String, oppPath: OppPath) = {
       val Array(_, direction) = opponentOrders.split("\\s")
-      oppPath.map {sqPath =>
-        val ns = nextRawSquare(sqPath._1, direction)
+      val res = oppPath.map {sqPath =>
+        val ns = nextRawSquareTry(sqPath._1, direction)
         val nl = (direction, sqPath._1) :: sqPath._2
         (ns, nl)
       }.withFilter(sqMap => sqMap._1 match {
         case Success(sq) => sq.water
         case Failure(_) => false
       }).map(sqMap => (sqMap._1.get, sqMap._2))
+      res
     }
 
     def processOpponentSurface(opponentOrders: String, oppPath: OppPath) = {
@@ -208,18 +154,20 @@ object Player extends App {
 
 
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-/*  val filename = "ocean/ocean0.txt"
+/*
+  val filename = "ocean/ocean0.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
   def readInt = if (data.hasNext) data.next.toInt else -1
-  def readLine = if (data.hasNext) data.next else "EOF"*/
+  def readLine = if (data.hasNext) data.next else "EOF"
+*/
 //----------------------------------------------------------------------------------------------------------------------
 
   def euclidean(a: (Int, Int), b: (Int, Int)) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
   def valid(square: Square) = square.accessible
   val Array(width, height, myId) = (readLine split " ").map(_.toInt)
-  // Console.err.println(s"myId=$myId size=$width:$height")
+//   Console.err.println(s"myId=$myId size=$width:$height")
 
   val boardSym = (for (i <- 0 until height) yield readLine).map(_.toCharArray)
   val board = boardSym.zipWithIndex.map(arrIndex => arrIndex._1.zipWithIndex.map(
@@ -228,7 +176,7 @@ object Player extends App {
   val squareArray = flattenBoard
   val coordSquaresMap = flattenBoard.map(square => ((square.getX, square.getY), square)).toMap
   val legalSquares = flattenBoard.filter(_.water)
-  val legalSquareSize = legalSquares.size
+  val legalSquareSize = legalSquares.length
   var euclideanDistanceMap = Map.empty[(Square, Square), Double]
 
   for (square1 <- legalSquares; square2 <- legalSquares; if !euclideanDistanceMap.contains((square1, square2))) {
@@ -238,22 +186,25 @@ object Player extends App {
   }
 
   val myManager = new MySquareManager(board, legalSquares, flattenBoard)
-  val oppManager = new OppSquareManager(legalSquares, flattenBoard)
-  val graph = new Graph(board, flattenBoard)
-
+  val oppManager = new OppSquareManager(board, legalSquares, flattenBoard)
   val oppLegalSquaresMap = legalSquares.map((_, List.empty[PathInfo])).toMap
   var oppSquares = oppLegalSquaresMap
 
 //  board.foreach(bl => {
 //    bl.foreach(_.print)
-    // Console.err.println})
+//     Console.err.println})
 
   println(s"${myManager.myPosition.getX} ${myManager.myPosition.getY}")
 //  println("0 6")
 
+  def findSquareAsOppPath(oppSquares: OppPath) = oppSquares.find(square => square._1.index == board(torpedoCoord._2)(torpedoCoord._1).index) match {
+    case Some(sq) => Map(sq._1 -> sq._2)
+    case None => oppSquares
+  }
+
   def processOppMove(oppSquares: OppPath, oppOrder: String) = {
       val order = oppOrder.trim
-      // Console.err.println(s"ORDER: $order")
+//       Console.err.println(s"ORDER: $order")
       if (order.startsWith("MOVE")) oppManager.processOpponentMove(order, oppSquares)
       else if (order.startsWith("SURFACE")) oppManager.processOpponentSurface(order, oppSquares)
       else if (order.startsWith("SILENCE")) oppManager.processOpponentSilence(oppSquares)
@@ -261,6 +212,20 @@ object Player extends App {
       else if (order.startsWith("NA")) oppLegalSquaresMap
       else oppSquares
   }
+
+  def processOppMoves(oppSquares: OppPath, opponentOrders: Array[String]) = {
+    var opps = oppSquares
+    opponentOrders.foreach { order =>
+      opps = processOppMove(opps, order)
+    }
+    opps
+  }
+
+  var oppPrevLife = 6
+  var torpedoRun = false
+//  var torpedoRun = true
+  var torpedoCoord = (-1,-1)
+//  var torpedoCoord = (3,4)
 
   while (true) {
     val Array(x, y, myLife, oppLife, torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown) = (readLine split " ").map(_.toInt)
@@ -272,14 +237,43 @@ object Player extends App {
     // Console.err.println(s"opponentOrders=$opponentOrders")
     val opponentOrdersArr = opponentOrders.split("\\|")
 
-    opponentOrdersArr.foreach { order =>
-      oppSquares = processOppMove(oppSquares, order)
-    }
+    oppSquares = if (torpedoRun) {
+      if (oppLife < oppPrevLife) {
+//        Console.err.println(s"torpedoCoord=${torpedoCoord} oppLife=$oppLife oppPrevLife=$oppPrevLife")
+        if (oppPrevLife - oppLife == 2) {
+          val oppsq = oppSquares.filter(sqpth => sqpth._1.index == board(torpedoCoord._2)(torpedoCoord._1).index)
+//          Console.err.println(s"torpedo 2")
+//          oppsq.keys.toList.sortBy(_.index).foreach(Console.err.print)
+//          Console.err.println
+          oppsq
+        } else if (oppPrevLife - oppLife == 1) {
+//          Console.err.println(s"torpedo 1")
+          val squares = oppManager.nextRawSquare(board(torpedoCoord._2)(torpedoCoord._1))
+          val oppsq = oppSquares.filter(sqpth => squares.contains(sqpth._1))
+//          oppsq.keys.toList.sortBy(_.index).foreach(Console.err.print)
+//          Console.err.println
+          oppsq
+        } else {
+          Console.err.println(s"Double hit!") // FIXME
+          oppSquares
+        }
+      } else {
+          val squares = oppManager.nextRawSquare(board(torpedoCoord._2)(torpedoCoord._1)) + board(torpedoCoord._2)(torpedoCoord._1)
+          val oppsq = oppSquares.filterNot(sqpth => squares.contains(sqpth._1))
+//          Console.err.println(s"Loose. New size= ${oppsq.size}")
+//          oppsq.keys.toList.sortBy(_.index).foreach(Console.err.print)    ,.
+//          Console.err.println1
+          oppsq
+      }
+    } else oppSquares
 
-    if (oppSquares.isEmpty) // Console.err.println("!!!!!!!!!!ERROR!!!!!!!!!!!!!")
-    // Console.err.println(s"oppSquares.size=${oppSquares.size}")
+    oppSquares = processOppMoves(oppSquares, opponentOrdersArr)
+//    oppSquares.keys.toList.sortBy(_.index).foreach(Console.err.print)
 
-    oppSquares.keys.toList.sortBy(_.index).foreach(Console.err.print)
+    val oppSize = oppSquares.size
+    if (oppSquares.isEmpty) Console.err.println("!!!!!!!!!!ERROR!!!!!!!!!!!!!")
+//    Console.err.println(s"oppSquares.size=$oppSize")
+//    if (oppSize < 30) oppSquares.keys.toList.sortBy(_.index).foreach(Console.err.print)
 
 /*
     val (edges, allDist) = graph.allDistance(myManager.myPosition.index, valid)
@@ -298,8 +292,9 @@ object Player extends App {
     val go = p.tail.head
     // Console.err.println(s"$go")
 
-//    val nextMove = directions.map(_._1).minBy(_.)
+//    val nextMove = directions. /.map(_._1).minBy(_.)
 */
+
 
     val (mainCommand, newpos) = if (directions.isEmpty) ("SURFACE", myManager.myPosition) else {
       val dir = directions.map(sqch => {
@@ -308,17 +303,25 @@ object Player extends App {
       }).minBy(_._1)
       // Console.err.println(s"$dir")
 //      val newpos = directions(myManager.rand.nextInt(directions.size))
-      (s"MOVE ${dir._3} TORPEDO", dir._2)
+      (s"MOVE ${dir._3}", dir._2)
     }
+
+    torpedoRun = false
 
     val dopCommand = if (mainCommand == "SURFACE") {
       myManager.surface
     } else if (mainCommand.startsWith("MOVE")) {
-      s"${if (torpedoCooldown > 0) "" else {
-        val torpedoSquares = myManager.safeTorpedoSquareMap(newpos)
-        val nearOppCandidateCoord = torpedoSquares.intersect(oppSquares.keySet.map(sq => (sq.getX, sq.getY)))
+      s"${if (torpedoCooldown > 0/* || oppSquares.size > 70*/) "" else {
+        val unsafeTorpedoSquares = myManager.torpedoSquareMap(newpos)
+        val safeTorpedoSquares = myManager.safeTorpedoSquareMap(newpos)
+        val oppCoord = oppsq.map(sq => (sq.getX, sq.getY))
+        val torpedoSquares = if (oppCoord.size == 1 && myLife >= oppLife) unsafeTorpedoSquares else safeTorpedoSquares
+        val nearOppCandidateCoord = torpedoSquares.intersect(oppCoord)
         nearOppCandidateCoord.find(_ => true) match {
           case Some(s) => {
+            torpedoRun = true
+            oppPrevLife = oppLife
+            torpedoCoord = s
             s"|TORPEDO ${s._1} ${s._2}"
           }
           case None => ""
@@ -326,7 +329,11 @@ object Player extends App {
       }}"
     }
 
-    println(s"$mainCommand$dopCommand")
-//    println(s"MOVE E SILENCE TORPEDO SONAR")
+    def load = if (torpedoCooldown > 0) " TORPEDO" else
+                 if (silenceCooldown > 0) " SILENCE" else
+                 if (sonarCooldown > 0) " SONAR" else
+                 if (mineCooldown > 0) " MINE" else ""
+
+    println(s"$mainCommand$load$dopCommand")
   }
 }
