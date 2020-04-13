@@ -1,11 +1,10 @@
 package codingame.challenge.ocean
 
 import codingames.challenge.ocean.Player
-import codingames.challenge.ocean.Player.{Graph, MySquareManager, OppSquareManager, PathInfo, Square, oppSquares}
+import codingames.challenge.ocean.Player.{MySquareManager, OppSquareManager, PathInfo, Square}
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
 import scala.io.Source
-import scala.util.Random
 
 class PlayerTest extends FlatSpec with BeforeAndAfter {
 
@@ -29,7 +28,7 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   val legalSquares = flattenBoard.filter(_.water)
 
   val myManager = new MySquareManager(board, legalSquares, flattenBoard)
-  val oppManager = new OppSquareManager(legalSquares, flattenBoard)
+  val oppManager = new OppSquareManager(board, legalSquares, flattenBoard)
 
   board.foreach(bl => {
     bl.foreach(_.print)
@@ -55,7 +54,7 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   }
 
   "An OppSquareManager" should "return correct next square" in {
-    val res = oppManager.nextRawSquare(coordSquaresMap((2,2)), "N")
+    val res = oppManager.nextRawSquareTry(coordSquaresMap((2,2)), "N")
     Console.err.println(s"$res")
   }
 
@@ -95,17 +94,4 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
 //    Console.err.println(s"surface::${surfaceMove.mkString(" ")}")
 //    Console.err.println(s"silence::${silenceMove.mkString(" ")}")
   }
-
-  "A Graph" should "find path for all squares" in {
-    val graph = new Graph(board, flattenBoard)
-    val squareNum = 0
-    val (edge, dist) = graph.allDistance(squareNum, _.water)
-    val square = flattenBoard(squareNum)
-
-    dist.zipWithIndex.filter(_._1 < Int.MaxValue).foreach(a => {
-      Console.err.println(s"Distance from (${square.getX},${square.getY}) to (${flattenBoard(a._2).getX},${flattenBoard(a._2).getY}) is " +
-        s"${if (a._1 < Int.MaxValue) a._1 else "unreachable"}")
-    })
-  }
-
 }
