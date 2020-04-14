@@ -141,9 +141,9 @@ object Player extends App {
 
     def setMyPosition(square: Square) {
       if (square.getX < myPosition.getX) for (x <- square.getX until myPosition.getX) board(square.getY)(x).accessible = false
-      if (square.getX > myPosition.getX) for (x <- myPosition.getX until square.getX) board(square.getY)(x).accessible = false
+      if (square.getX > myPosition.getX) for (x <- myPosition.getX to square.getX) board(square.getY)(x).accessible = false
       if (square.getY < myPosition.getY) for (y <- square.getY until myPosition.getY) board(y)(square.getX).accessible = false
-      if (square.getY > myPosition.getY) for (y <- myPosition.getY until square.getY) board(y)(square.getX).accessible = false
+      if (square.getY > myPosition.getY) for (y <- myPosition.getY to square.getY) board(y)(square.getX).accessible = false
       myPosition = square
     }
 
@@ -207,6 +207,8 @@ object Player extends App {
   var oppSquares = oppLegalSquaresMap
   var mySquares = oppLegalSquaresMap
 
+  var needSilence = false
+  var needDopCommand = true
   var oppPrevLife = 6
   var myLastMove = ""
   var myPrevLife = 6
@@ -275,6 +277,20 @@ object Player extends App {
     processOppMoves(sqpth, opponentOrdersArr)
   }
 
+  def calculateLoad(torpedoCooldown: Int, silenceCooldown: Int, sonarCooldown: Int, mineCooldown: Int) =
+    if (!needDopCommand) "" else
+    if (torpedoCooldown > 0) " TORPEDO" else
+    if (silenceCooldown > 0) " SILENCE" else
+    if (sonarCooldown > 0) " SONAR" else
+    if (mineCooldown > 0) " MINE" else ""
+
+
+  def calculateMySilence = {
+    val silence = myManager.possibleSilence(myLastMove).find(_ => true).get
+    needDopCommand = false
+    (s"SILENCE ${silence._1} ${silence._2}", silence._3)
+  }
+
   def calculateMyMove(directions: Array[(Square, String)], oppsq: Set[Square]) = {
     val dir = directions.map(sqch => {
       val minOpp = oppsq.minBy(s => euclideanDistanceMap((s, sqch._1)))
@@ -284,6 +300,35 @@ object Player extends App {
     //      val newpos = directions(myManager.rand.nextInt(directions.size))
     myLastMove = dir._3
     (s"MOVE ${dir._3}", dir._2)
+  }
+
+  def calculateMyTorpedo(torpedoCooldown: Int, newpos: Square, oppsq: Set[Square], myLife: Int, oppLife: Int) = {
+    if (torpedoCooldown > 0 || oppSquares.size > 150) "" else {
+      val unsafeTorpedoSquares = myManager.torpedoSquareMap(newpos)
+      val safeTorpedoSquares = myManager.safeTorpedoSquareMap(newpos)
+      val oppCoord = oppsq.map(sq => (sq.getX, sq.getY))
+      val torpedoSquares = if (oppCoord.size == 1 && myLife >= oppLife) unsafeTorpedoSquares else safeTorpedoSquares
+      val nearOppCandidateCoord = torpedoSquares.intersect(oppCoord)
+      nearOppCandidateCoord.find(_ => true) match {
+        case Some(s) => {
+          torpedoOppRun = true
+          oppPrevLife = oppLife
+          torpedoOppCoord = s
+          s"|TORPEDO ${s._1} ${s._2}"
+        }
+        case None => ""
+      }
+    }
+  }
+
+  def calculateDopCommand(torpedoCooldown: Int, newpos: Square, oppsq: Set[Square], myLife: Int, oppLife: Int) = {
+    val torpedo = calculateMyTorpedo(torpedoCooldown, newpos, oppsq, myLife, oppLife)
+    torpedo
+  }
+
+  def calculate(directions: Array[(Square, String)], oppsq: Set[Square],
+                torpedoCooldown: Int, newpos: Square, myLife: Int, oppLife: Int) = {
+//    val move = calculateMyMove(myManager.possibleDirection, )
   }
 
   while (true) {
@@ -305,34 +350,16 @@ object Player extends App {
     if (oppSquares.isEmpty) Console.err.println("!!!!!!!!!!ERROR!!!!!!!!!!!!!")
 //    Console.err.println(s"oppSquares.size=$oppSize")
 //    if (oppSize < 30) oppSquares.keys.toList.sortBy(_.index).foreach(Console.err.print)
-
-/*
-    val (edges, allDist) = graph.allDistance(myManager.myPosition.index, valid)
-    val dist = allDist.indices.filter(index => allDist(index) < Int.MaxValue).toList
-    val inds = oppSquares.keys.map(_.index).toList
-    val res = dist.intersect(inds)
-
-    // Console.err.println(s"$res")
-*/
-
-    flattenBoard.filterNot(s => s.accessible).filter(_.water).sortBy(_.index).foreach(Console.err.print)
+//    flattenBoard.filterNot(s => s.accessible).filter(_.water).sortBy(_.index).foreach(Console.err.print)
 
     val directions = myManager.possibleDirection
     val oppsq = oppSquares.keySet
 
-/*
-    val p = graph.path(34, 16, edges)
-    val go = p.tail.head
-    // Console.err.println(s"$go")
-
-//    val nextMove = directions. /.map(_._1).minBy(_.)
-*/
-
-
     val (mainCommand, newpos) = if (directions.isEmpty) ("SURFACE", myManager.myPosition) else
-      if (myLife < myPrevLife && silenceCooldown == 0) {
-          val silence = myManager.possibleSilence(myLastMove).find(_ => true).get
-          (s"SILENCE ${silence._1} ${silence._2}", silence._3)
+      if (myLife < myPrevLife && silenceCooldown == 0) calculateMySilence
+      else if (myLife < myPrevLife && silenceCooldown > 0) {
+        needSilence = true
+        calculateMyMove(directions, oppsq)
       } else calculateMyMove(directions, oppsq)
 
     torpedoOppRun = false
@@ -341,29 +368,12 @@ object Player extends App {
     val dopCommand = if (mainCommand == "SURFACE") {
       myManager.surface
     } else if (mainCommand.startsWith("MOVE")) {
-      s"${if (torpedoCooldown > 0/* || oppSquares.size > 70*/) "" else {
-        val unsafeTorpedoSquares = myManager.torpedoSquareMap(newpos)
-        val safeTorpedoSquares = myManager.safeTorpedoSquareMap(newpos)
-        val oppCoord = oppsq.map(sq => (sq.getX, sq.getY))
-        val torpedoSquares = if (oppCoord.size == 1 && myLife >= oppLife) unsafeTorpedoSquares else safeTorpedoSquares
-        val nearOppCandidateCoord = torpedoSquares.intersect(oppCoord)
-        nearOppCandidateCoord.find(_ => true) match {
-          case Some(s) => {
-            torpedoOppRun = true
-            oppPrevLife = oppLife
-            torpedoOppCoord = s
-            s"|TORPEDO ${s._1} ${s._2}"
-          }
-          case None => ""
-        }
-      }}"
+      calculateDopCommand(torpedoCooldown, newpos, oppsq, myLife, oppLife)
     }
-    myPrevLife = myLife
+    val load = calculateLoad(torpedoCooldown, silenceCooldown, sonarCooldown, mineCooldown)
 
-    def load = if (torpedoCooldown > 0) " TORPEDO" else
-                 if (silenceCooldown > 0) " SILENCE" else
-                 if (sonarCooldown > 0) " SONAR" else
-                 if (mineCooldown > 0) " MINE" else ""
+    myPrevLife = myLife
+    needDopCommand = true
 
     println(s"$mainCommand$load$dopCommand")
   }
