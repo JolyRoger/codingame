@@ -1,7 +1,7 @@
 package codingame.challenge.ocean
 
 import codingames.challenge.ocean.Player
-import codingames.challenge.ocean.Player.{MySquareManager, OppSquareManager, PathInfo, Square}
+import codingames.challenge.ocean.Player._
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
 import scala.io.Source
@@ -27,7 +27,15 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   val coordSquaresMap = flattenBoard.map(square => ((square.getX, square.getY), square)).toMap
   val legalSquares = flattenBoard.filter(_.water)
 
-  val myManager = new MySquareManager(board, legalSquares, flattenBoard)
+  var euclideanDistanceMap = Map.empty[(Square, Square), Double]
+
+  for (square1 <- legalSquares; square2 <- legalSquares; if !euclideanDistanceMap.contains((square1, square2))) {
+    val dist = euclidean((square1.getX, square1.getY), (square2.getX, square2.getY))
+    euclideanDistanceMap = euclideanDistanceMap + ((square1, square2) -> dist)
+    euclideanDistanceMap = euclideanDistanceMap + ((square2, square1) -> dist)
+  }
+
+  val myManager = new MySquareManager(board, legalSquares, flattenBoard, euclideanDistanceMap)
   val oppManager = new OppSquareManager(board, legalSquares, flattenBoard)
 
   board.foreach(bl => {
