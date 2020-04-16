@@ -9,7 +9,7 @@ import scala.io.Source
 class PlayerTest extends FlatSpec with BeforeAndAfter {
 
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "ocean/ocean0.txt"
+  val filename = "ocean/ocean2.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
@@ -49,8 +49,10 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
   }
 
   "A SquareManager" should "find torpedo squares" in {
-    val torpedoSquares = myManager.safeTorpedoSquares
+    Console.err.println(s"pos=${myManager.myPosition}")
+    val torpedoSquares = myManager.safeTorpedoSquareMap(myManager.myPosition)
     Console.err.println(s"${torpedoSquares.mkString(",")}")
+    assert(torpedoSquares.equals(Set(board(2)(0))))
   }
 
   "An OppSquareManager" should "return correct next square" in {
