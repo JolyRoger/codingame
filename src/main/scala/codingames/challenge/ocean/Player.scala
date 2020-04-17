@@ -1,6 +1,7 @@
 //package codingames.challenge.ocean
 
 import math._
+import scala.collection.Set
 import scala.io.Source
 import scala.util._
 import scala.io.StdIn._
@@ -17,6 +18,7 @@ object Player extends App {
     val getY = y
     val getSym = sym
     val water = sym == '.'
+    val rock = !water
     var accessible = water
 
     def print = Console.err.print(s"$sym")
@@ -27,7 +29,8 @@ object Player extends App {
   abstract class SquareManager(board: Array[Array[Square]], legalSquares: Array[Square], flattenBoard: Array[Square]) {
 //    val torpedoSquareMap = legalSquares.map(square => (square, square.allTorpedoSquares.filter(xy => flattenBoard(xy._2 * 15 + xy._1).water))).toMap
     val oppositeDirection = Map("S" -> "N", "N" -> "S", "W" -> "E", "E" -> "W", "" -> "")
-    val directions = Set("N", "W", "S", "E")
+    val cardinal = Set("N", "W", "S", "E")
+    val windrose = cardinal ++ Set("NW", "SW", "SE", "NE")
 
     def takeRawSquareTry(currentSquare: Square, direction: String, step: Int) = {
       direction match {
@@ -35,6 +38,10 @@ object Player extends App {
         case "S" => Try(board(currentSquare.getY + step)(currentSquare.getX))
         case "W" => Try(board(currentSquare.getY)(currentSquare.getX - step))
         case "E" => Try(board(currentSquare.getY)(currentSquare.getX + step))
+        case "NW" => Try(board(currentSquare.getY + step)(currentSquare.getX - step))
+        case "SW" => Try(board(currentSquare.getY - 1)(currentSquare.getX - step))
+        case "NE" => Try(board(currentSquare.getY - 1)(currentSquare.getX + step))
+        case "SE" => Try(board(currentSquare.getY + 1)(currentSquare.getX + step))
       }
     }
 
@@ -42,10 +49,11 @@ object Player extends App {
       takeRawSquareTry(currentSquare, direction, 1)
     }
 
-    def getNextCrossSquares(currentSquare: Square, step: Int) = {
+    def getSquaresInArea(directions: Set[String], currentSquare: Square, step: Int, valid: Square => Boolean) = {
       directions.flatMap { direction =>
-        val res = (for (i <- 1 to step) yield takeRawSquareTry(currentSquare, direction, i)).collect { case ts if ts.isSuccess => ts.get }
-        res.toSet
+        (for (i <- 1 to step) yield takeRawSquareTry(currentSquare, direction, i)).collect {
+          case ts if ts.isSuccess => (ts.get, direction)
+        }.toSet.filter(s => valid(s._1))
       }
     }
 
@@ -104,7 +112,7 @@ object Player extends App {
     def processOpponentSilence(oppSquares: OppPath) = {
       val extraSquares = oppSquares.flatMap(squarePath => {
         val lastMove = squarePath._2.headOption.getOrElse(("", null))._1
-        (directions - lastMove).flatMap(dir => takeSilenceSquares(squarePath, oppositeDirection(dir), _.water))
+        (cardinal - lastMove).flatMap(dir => takeSilenceSquares(squarePath, oppositeDirection(dir), _.water))
       }).filter(_._1.water)
       extraSquares ++ oppSquares
     }
@@ -115,6 +123,10 @@ object Player extends App {
                         flattenBoard: Array[Square],
                         distanceMap: Map[(Square, Square), Double]) extends SquareManager(board, legalSquares, flattenBoard) {
     val rand = new Random(System.currentTimeMillis)
+    var mines = Set.empty[Square]
+    var minesRoot = Map.empty[Square, Square]
+    var minesArea = Map.empty[Square, Set[Square]]
+
     var myPosition = legalSquares(rand.nextInt(legalSquares.length))
 //    var myPosition = board(0)(0)
 
@@ -131,7 +143,7 @@ object Player extends App {
 
       for (i <- 1 to 4) {
             val neighbours = stack.flatMap {
-              square => directions.map(takeRawSquareTry(square, _, 1)).collect { case s if s.isSuccess && s.get.water => s.get }
+              square => cardinal.map(takeRawSquareTry(square, _, 1)).collect { case s if s.isSuccess && s.get.water => s.get }
             }
             stack = neighbours ++ stack
       }
@@ -155,14 +167,14 @@ object Player extends App {
 
 
     def possibleSilence(lastMove: String) = {
-      (directions - oppositeDirection(lastMove)).flatMap(dir => takeSilenceSquares((myPosition, List.empty[(String, Square)]), dir, _.accessible)).map { sqpth =>
+      val mypos = ("N", 0, myPosition)
+      cardinal.flatMap(dir => takeSilenceSquares((myPosition, List.empty[(String, Square)]), dir, _.accessible)).map { sqpth =>
         val square = sqpth._1
-        val direction = if (square.getX < myPosition.getX) ("W", myPosition.getX - square.getX, square) else
-                        if (square.getX > myPosition.getX) ("E", square.getX - myPosition.getX, square) else
-                        if (square.getY < myPosition.getY) ("N", myPosition.getY - square.getY, square) else
-                        if (square.getY < myPosition.getY) ("S", square.getY - myPosition.getY, square) else (if (lastMove.isEmpty) "N" else lastMove, 0, myPosition)
-        direction
-      }
+        if (square.getX < myPosition.getX) ("W", myPosition.getX - square.getX, square) else
+        if (square.getX > myPosition.getX) ("E", square.getX - myPosition.getX, square) else
+        if (square.getY < myPosition.getY) ("N", myPosition.getY - square.getY, square) else
+        if (square.getY < myPosition.getY) ("S", square.getY - myPosition.getY, square) else (if (lastMove.isEmpty) "N" else lastMove, 0, myPosition)
+      } + mypos
     }
 
     def possibleDirection = {
@@ -213,12 +225,12 @@ object Player extends App {
   var oppSquares = oppLegalSquaresMap
   var mySquares = oppLegalSquaresMap
 
+  var setMine = false
   var needSilence = false
-  var needDopCommand = true
+  var torpedoOppRun = false
   var oppPrevLife = 6
   var myLastMove = ""
   var myPrevLife = 6
-  var torpedoOppRun = false
 //  var torpedoMyRun = false
   var torpedoOppCoord = myManager.myPosition
   var torpedoMyCoord = (-1,-1)
@@ -230,14 +242,14 @@ object Player extends App {
   println(s"${myManager.myPosition.getX} ${myManager.myPosition.getY}")
 //  println("0 6")
 
-  def processOppMove(oppSquares: OppPath, oppOrder: String, myLife: Int) = {
+  def processOppMove(oppSquares: OppPath, oppOrder: String, myLife: Int, oppLife: Int) = {
       val order = oppOrder.trim
 //       Console.err.println(s"ORDER: $order")
       if (order.startsWith("MOVE")) oppManager.processOpponentMove(order, oppSquares)
       else if (order.startsWith("SURFACE")) oppManager.processOpponentSurface(order, oppSquares)
       else if (order.startsWith("SILENCE")) oppManager.processOpponentSilence(oppSquares)
       else if (order.startsWith("TORPEDO")) {
-        if (myLife < myPrevLife) needSilence = true
+        if (myLife < myPrevLife && myLife < oppLife && oppSquares.size > 5) needSilence = true
 //        Console.err.println(s"!!torpedoMyRun!!")
 //        torpedoMyRun = true
         oppSquares
@@ -246,10 +258,10 @@ object Player extends App {
       else oppSquares
   }
 
-  def processOppMoves(oppSquares: OppPath, opponentOrders: Array[String], myLife: Int) = {
+  def processOppMoves(oppSquares: OppPath, opponentOrders: Array[String], myLife: Int, oppLife: Int) = {
     var opps = oppSquares
     opponentOrders.foreach { order =>
-      opps = processOppMove(opps, order, myLife)
+      opps = processOppMove(opps, order, myLife, oppLife)
     }
     opps
   }
@@ -287,25 +299,25 @@ object Player extends App {
         oppsq
       }
     } else oppSquares
-    processOppMoves(sqpth, opponentOrdersArr, myLife)
+    processOppMoves(sqpth, opponentOrdersArr, myLife, life)
   }
 
   def calculateLoad(torpedoCooldown: Int, silenceCooldown: Int, sonarCooldown: Int, mineCooldown: Int) = {
-    if (needSilence) Console.err.println(s"need silence!")
+//    if (needSilence) Console.err.println(s"need silence!")
 
-    if (needSilence && silenceCooldown > 0) " SILENCE" else
-    if (torpedoCooldown > 0) " TORPEDO" else
-    if (mineCooldown > 0) " MINE" else
-    if (silenceCooldown > 0) " SILENCE" else
-    if (sonarCooldown > 0) " SONAR" else ""
+    if (needSilence && silenceCooldown > 0) (" SILENCE", torpedoCooldown, silenceCooldown, mineCooldown) else
+    if (torpedoCooldown > 0) (" TORPEDO", torpedoCooldown - 1, silenceCooldown, mineCooldown) else
+    if (mineCooldown > 0) (" MINE", torpedoCooldown, silenceCooldown, mineCooldown - 1) else
+    if (silenceCooldown > 0) (" SILENCE", torpedoCooldown, silenceCooldown - 1, mineCooldown) else
+    if (sonarCooldown > 0) (" SONAR", torpedoCooldown, silenceCooldown, mineCooldown) else ("", torpedoCooldown, silenceCooldown, mineCooldown)
   }
 
   def calculateMySilence(silenceCooldown: Int) = {
     if (!needSilence || silenceCooldown > 0) "" else {
       val possibleSilence = myManager.possibleSilence(myLastMove)
 
-      Console.err.println(s"Possible silence: ")
-      possibleSilence.foreach(s => Console.err.print(s"${s._1}${s._2} "))
+//      Console.err.println(s"Possible silence: ")
+//      possibleSilence.foreach(s => Console.err.print(s"${s._1}${s._2} "))
 
       val mySilence = possibleSilence.find(_ => true).get
       needSilence = false
@@ -314,11 +326,12 @@ object Player extends App {
     }
   }
 
+  private def minmax(candidates : Array[(Double, Square, String)]) = if (needSilence) candidates.maxBy(_._1) else candidates.minBy(_._1)
   def calculateMyMove(directions: Array[(Square, String)], oppsq: Set[Square]) = {
-    val dir = directions.map(sqch => {
+    val dir = minmax(directions.map(sqch => {
       val minOpp = oppsq.minBy(s => euclideanDistanceMap((s, sqch._1)))
       (euclideanDistanceMap((minOpp, sqch._1)), sqch._1, sqch._2)
-    }).minBy(_._1)
+    }))
     // Console.err.println(s"$dir")
     //      val newpos = directions(myManager.rand.nextInt(directions.size))
     myLastMove = dir._3
@@ -327,6 +340,7 @@ object Player extends App {
   }
 
   def calculateMyTorpedo(torpedoCooldown: Int, oppsq: Set[Square], myLife: Int, oppLife: Int) = {
+//    Console.err.println(s"torpCool=$torpedoCooldown")
     if (torpedoCooldown > 0 || oppsq.size > 150) "" else {
       val unsafeTorpedoSquares = myManager.unsafeTorpedoSquareMap(myManager.myPosition)
       val safeTorpedoSquares = myManager.safeTorpedoSquareMap(myManager.myPosition)
@@ -344,38 +358,73 @@ object Player extends App {
     }
   }
 
-  def calculateMySurface(directions: Array[(Square, String)]) = {
+  def calculateMySurface(directions: Array[(Square, String)], myLife: Int, oppLife: Int) = {
     if (directions.isEmpty) {
       legalSquares.foreach(_.accessible = true)
       myManager.myPosition.accessible = false
+      needSilence = myLife <= oppLife
       "SURFACE|"
     } else ""
   }
 
-  def calculateMyMine(mineCooldown: Int, oppsq: Set[Square], myLife: Int, oppLife: Int) = {
-    if (mineCooldown > 0) "" else {
-      ""
+  def calculateMyMine(mineCooldown: Int, oppsq: Set[Square]) = {
+    lazy val oppNeighbours = myManager.getSquaresInArea(myManager.cardinal, myManager.myPosition, 1, s => oppsq.contains(s) && !myManager.mines.contains(s))
+    if (mineCooldown > 0 || oppNeighbours.isEmpty) "" else {
+      setMine = true
+      val (square, direction) = oppNeighbours.head
+      myManager.mines = myManager.mines + square
+      val squaresInArea = myManager.getSquaresInArea(myManager.windrose, square, 1, _.water)
+      myManager.minesArea += square -> (squaresInArea.map(_._1) + square)
+      val lesion = squaresInArea.map(sd => (sd._1, square)).toMap + (square -> square)
+      myManager.minesRoot ++= lesion
+//      Console.err.println(s"mines: ${myManager.mines}")
+//      Console.err.println(s"minesArea: ${myManager.minesArea}")
+//      Console.err.println(s"minesRoot: ${myManager.minesRoot}")
+      s"|MINE ${direction}"
+    }
+  }
+
+  def calculateMyTrigger(oppsq: Set[Square], myLife: Int, oppLife: Int) = {
+    if (setMine) "" else {
+      lazy val unsafeCandidates = myManager.minesRoot.keySet.intersect(oppsq)
+      lazy val safeCandidates = myManager.mines.filter(s => euclideanDistanceMap((myManager.myPosition, s)) > 1.5).flatMap(myManager.minesArea(_)).intersect(oppsq)
+      lazy val candidates = if (myLife > oppLife && unsafeCandidates.nonEmpty) unsafeCandidates
+                            else if (myLife <= oppLife && safeCandidates.nonEmpty) safeCandidates else Set.empty[Square]
+
+      if (oppsq.size < 10 && candidates.nonEmpty) {
+//        Console.err.println(s"candidate=${candidates.head}")
+//        Console.err.println(s"mines: ${myManager.mines}")
+//        Console.err.println(s"minesArea: ${myManager.minesArea}")
+//        Console.err.println(s"minesRoot: ${myManager.minesRoot}")
+        val mine = myManager.minesRoot(candidates.head)
+        myManager.mines -= mine
+        myManager.minesArea -= mine
+        myManager.minesRoot = myManager.minesRoot.filterNot(kv => kv._2.index == mine.index) // FIXME
+        s"|TRIGGER ${mine.getX} ${mine.getY}"
+      } else ""
     }
   }
 
   def calculate(oppsq: Set[Square],
                 myLife: Int, oppLife: Int,
                 torpedoCooldown: Int, silenceCooldown: Int, sonarCooldown: Int, mineCooldown: Int) = {
-//    if (oppsq.size < 30) oppsq.toList.sortBy(_.index).foreach(Console.err.print)
-    Console.err.println(s"oppsq.size=${oppsq.size}")
+//    if (oppsq.size < 5) oppsq.toList.sortBy(_.index).foreach(Console.err.print)
+//    Console.err.println(s"oppsq.size=${oppsq.size}")
 
-    val surface = calculateMySurface(myManager.possibleDirection)
+    val surface = calculateMySurface(myManager.possibleDirection, myLife, oppLife)
     val move = calculateMyMove(myManager.possibleDirection, oppsq)
-    val torpedo = calculateMyTorpedo(torpedoCooldown, oppsq, myLife, oppLife)
-    val mine = calculateMyMine(mineCooldown, oppsq, myLife, oppLife)
-    val silence = calculateMySilence(silenceCooldown)
-    val load = calculateLoad(torpedoCooldown, silenceCooldown, sonarCooldown, mineCooldown)
-    surface + move + load + torpedo + silence
+    val (load, newTorpedoCooldown, newSilenceCooldown, newMineCooldown) = calculateLoad(torpedoCooldown, silenceCooldown, sonarCooldown, mineCooldown)
+//    Console.err.println(s"newTorpedoCooldown=$newTorpedoCooldown")
+    val torpedo = calculateMyTorpedo(newTorpedoCooldown, oppsq, myLife, oppLife)
+    val mine = calculateMyMine(newMineCooldown, oppsq)
+    val trigger = calculateMyTrigger(oppsq, myLife, oppLife)
+    val silence = calculateMySilence(newSilenceCooldown)
+    surface + move + load + torpedo + silence + mine + trigger
   }
 
   while (true) {
     val Array(x, y, myLife, oppLife, torpedoCooldown, sonarCooldown, silenceCooldown, mineCooldown) = (readLine split " ").map(_.toInt)
-    Console.err.println(s"sonarCooldown=$sonarCooldown")
+//    Console.err.println(s"sonarCooldown=$sonarCooldown")
     myManager.setMyPosition(board(y)(x))
     // Console.err.println(s"$x $y $myLife $oppLife $torpedoCooldown $sonarCooldown $silenceCooldown $mineCooldown")
     val sonarResult = readLine
@@ -390,6 +439,7 @@ object Player extends App {
     val output = calculate(oppSquares.keySet, myLife, oppLife, torpedoCooldown, silenceCooldown, sonarCooldown, mineCooldown)
 
     myPrevLife = myLife
+    setMine = false
 
     println(output)
   }

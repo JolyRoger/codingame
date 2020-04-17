@@ -9,7 +9,7 @@ import scala.io.Source
 class PlayerTest extends FlatSpec with BeforeAndAfter {
 
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "ocean/ocean2.txt"
+  val filename = "ocean/ocean0.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
@@ -100,8 +100,10 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
     surfaceMove.keys.toList.sortBy(_.index).foreach(Console.err.print)
     Console.err.println
     silenceMove.keys.toList.sortBy(_.index).foreach(Console.err.print)
+  }
 
-//    Console.err.println(s"surface::${surfaceMove.mkString(" ")}")
-//    Console.err.println(s"silence::${silenceMove.mkString(" ")}")
+  "A SquareManager" should "find what needed" in {
+    val res = myManager.getNextCrossSquares(board(0)(4), 3, _.water)
+    Console.err.println(s"$res")
   }
 }
