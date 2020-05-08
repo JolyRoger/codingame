@@ -101,9 +101,4 @@ class PlayerTest extends FlatSpec with BeforeAndAfter {
     Console.err.println
     silenceMove.keys.toList.sortBy(_.index).foreach(Console.err.print)
   }
-
-  "A SquareManager" should "find what needed" in {
-    val res = myManager.getNextCrossSquares(board(0)(4), 3, _.water)
-    Console.err.println(s"$res")
-  }
 }
