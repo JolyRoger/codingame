@@ -1,4 +1,4 @@
-//package codingames.challenge.pacman
+package codingames.challenge.pacman
 
 import scala.io.Source
 import scala.util._
@@ -25,6 +25,7 @@ sealed abstract class Square(val x: Int, val y: Int) {
 
   def index: Int
 
+  var num: Int = 0
   var prise: Int = 0
   var free: Boolean = true
   var opp: Boolean = true
@@ -40,8 +41,8 @@ case class RockSquare(override val x: Int, override val y: Int, override val sym
 class Board(val squareMatrix: Array[Array[Square]]) {
 
   val transposedMatrix = transpose(squareMatrix)
-
   val toSet = squareMatrix.flatten.toSet
+  val size = toSet.size
 
   def this(charData: Array[Array[Char]], air: Char, rock: Char) = {
     this {
@@ -67,8 +68,8 @@ class Board(val squareMatrix: Array[Array[Square]]) {
   }
 
 
-  def show(squares: Set[Square]): Unit = {
-    // Console.err.println(s"${toString(squares)}")
+  def show(squares: Set[Square]) {
+     Console.err.println(s"${toString(squares)}")
   }
 
   private def toString(squares: Set[Square]): String = {
@@ -100,12 +101,33 @@ abstract class AbstractGame(board: Board) {
       case NorthEast => Try(board(x + step)(y - step))
       case SouthEast => Try(board(x + step)(y + step))
     }
+
+  }
+
+  def inMoves(x: Int, y: Int, num: Int) = {
+    board(x)(y).num = 0
+    var stack = List(board(x)(y))
+    var out = Set.empty[Square]
+    val marked = Array.fill[Boolean](board.size)(false)
+
+    while (stack.nonEmpty) {
+      val e = stack.head
+      marked(e.index) = true
+      val neighbours = cardinal.map(takeRawSquareTry(e.x, e.y, _, 1)).collect {
+        case res if res.isSuccess => res.get
+      }.filterNot(s => s.rock || marked(s.index))
+      neighbours.foreach(_.num = e.num + 1)
+      out = out ++ neighbours
+      stack = neighbours.filter(_.num < num).toList ::: stack.tail
+    }
+    out
   }
 }
+class Game(board: Board) extends AbstractGame(board: Board)
 class Pac(val pacId: Int, val mine: Boolean, var x: Int, var y: Int, val typeId: String, var speedTurnsLeft: Int, var abilityCooldown: Int, var live: Boolean = true) {
   var target: Square = _
   var clash = false
-  var targetType = 0      // 0 - max prise, shortest disatance,
+  var targetType = 0      // 0 - max prise, shortest distance,
                           // 1 - max prise, longest distance,
                           // 2 - min prise, shortest distance
                           // 3 - min prose, longest distance
@@ -133,7 +155,6 @@ object Player extends App {
     (pac.target.x == pac.x && pac.target.y == pac.y) ||
     pac.target.prise == 0 ||
     pac.clash
-
   def setTarget(pacs: Array[Pac], squares: Set[Square]) {
     var priseMap = squares.groupBy(_.prise) - 0
 
@@ -164,11 +185,11 @@ object Player extends App {
   }
 
   //------------------------------------------FILE ENTRY------------------------------------------------------------------
-//        val filename = "resources/pacman/pacman2.txt"
-//        val bufferedSource = Source.fromFile(filename)
-//        val data = bufferedSource.getLines
-//        def readInt = if (data.hasNext) data.next.toInt else -1
-//        def readLine = if (data.hasNext) data.next else "EOF"
+        val filename = "resources/pacman/pacman2.txt"
+        val bufferedSource = Source.fromFile(filename)
+        val data = bufferedSource.getLines
+        def readInt = if (data.hasNext) data.next.toInt else -1
+        def readLine = if (data.hasNext) data.next else "EOF"
   //----------------------------------------------------------------------------------------------------------------------
 
 
@@ -176,10 +197,11 @@ object Player extends App {
   // Console.err.println(s"${width} $height")
   val lines = (for (i <- 0 until height) yield readLine).toList
   val board = linesToBoard(lines)
+  val game = new Game(board)
 
   // Console.err.println(s"${board.toString}")
 
-  val squares = board.toSet.filter(_.isInstanceOf[AirSquare])
+  val squares = board.toSet.filter(_.air)
   var visitedSquares = Set.empty[Square]
   var unvisitedSquares = squares
   var mypac = Array.fill[Pac](5)(null)
@@ -229,6 +251,9 @@ object Player extends App {
       board(x)(y).prise = value
 //       Console.err.println(s"$x $y $value")
     }
+
+    val res = game.inMoves(3, 1, 4)
+    board.show(res)
 
     setTarget(mypac, unvisitedSquares)
 
