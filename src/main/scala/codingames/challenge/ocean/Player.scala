@@ -1,4 +1,4 @@
-//package codingames.challenge.ocean
+package codingames.challenge.ocean
 
 import math._
 import scala.collection.Set
