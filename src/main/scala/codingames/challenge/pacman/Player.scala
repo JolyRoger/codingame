@@ -1,5 +1,6 @@
-package codingames.challenge.pacman
+//package codingames.challenge.pacman
 
+import scala.collection.mutable
 import scala.io.Source
 import scala.util._
 import scala.io.StdIn._
@@ -124,15 +125,24 @@ abstract class AbstractGame(board: Board) {
   }
 }
 class Game(board: Board) extends AbstractGame(board: Board)
-class Pac(val pacId: Int, val mine: Boolean, var x: Int, var y: Int, val typeId: String, var speedTurnsLeft: Int, var abilityCooldown: Int, var live: Boolean = true) {
+class Pac(val pacId: Int, val mine: Boolean, var x: Int, var y: Int, var typeId: String, var speedTurnsLeft: Int, var abilityCooldown: Int, var live: Boolean = true) {
+  var needTarget = true
   var target: Square = _
   var clash = false
   var targetType = 0      // 0 - max prise, shortest distance,
                           // 1 - max prise, longest distance,
                           // 2 - min prise, shortest distance
                           // 3 - min prose, longest distance
-  def command = s"MOVE ${pacId} ${target.x} ${target.y}"
-  def reset = live = false; clash = false
+
+  var action = "MOVE"
+  def todo = if (action == "MOVE") {
+    if (target == null) "null" else s"${target.x} ${target.y}"
+  } else
+    if (action == "SWITCH") s"$typeId" else ""
+  def command = s"${action} $pacId $todo <${target.x},${target.y}>"
+  def reset = {
+    live = false; clash = false; action = "MOVE"
+  }
 }
 
 
@@ -149,57 +159,104 @@ class Pac(val pacId: Int, val mine: Boolean, var x: Int, var y: Int, val typeId:
 
 
 object Player extends App {
+  val rand = new Random
+  val winpacmap = Map("SCISSORS" -> "ROCK", "ROCK" -> "PAPER", "PAPER" -> "SCISSORS")
   def linesToBoard(lines: List[String]): Board = new Board(lines, ' ', '#')
   def goodPac(pac: Pac) = pac != null && pac.live
-  def needTarget(pac: Pac) = pac.target == null ||
-    (pac.target.x == pac.x && pac.target.y == pac.y) ||
-    pac.target.prise == 0 ||
-    pac.clash
-  def setTarget(pacs: Array[Pac], squares: Set[Square]) {
+//  def needTarget(pac: Pac) = pac.target == null ||
+//    (pac.target.x == pac.x && pac.target.y == pac.y) ||
+//    pac.target.prise == 0 ||
+//    pac.clash
+  def setTarget(pacs: Set[Pac], squares: Set[Square]) {
     var priseMap = squares.groupBy(_.prise) - 0
 
-    val targetPacs = pacs.filter(pac => goodPac(pac) && needTarget(pac))
-    val targetTypes = targetPacs.partition(_.clash)
+    val targetPacs = pacs.filter(_.needTarget)
+    val (clashTarget, usualTarget) = targetPacs.partition(_.clash)
+    usualTarget.foreach(_.targetType = 0)
 
-    if (targetTypes._1.nonEmpty) {
-      val minPac = targetTypes._1.minBy(_.pacId)
+    if (clashTarget.nonEmpty) {
+      val minPac = clashTarget.minBy(_.targetType)
+//      Console.err.println(s"minPac: ${minPac.pacId} ${minPac.targetType} ${minPac.target}")
       minPac.targetType = (minPac.targetType + 1) % 4
     }
 
-    for (pac <- pacs; if goodPac(pac) && needTarget(pac)) {
-      pac.target = {
-//        Console.err.println(s"${pac.pacId}")
-        val maxPrise = priseMap.keySet.max
-        val minPrise = priseMap.keySet.min
-//        Console.err.println(s"\tprises: ${priseMap.keySet.mkString(",")}")
-        var targetSet = priseMap(if (pac.targetType < 2) maxPrise else minPrise)
-//        Console.err.println(s"\ttargetSet: $targetSet")
-        val square = if (pac.targetType % 2 == 0) targetSet.minBy(square => Calc.euclidean((square.x, square.y), (pac.x, pac.y)))
-                     else targetSet.maxBy(square => Calc.euclidean((square.x, square.y), (pac.x, pac.y)))
-//        Console.err.println(s"\ttarget square: $square")
-        targetSet = targetSet - square
-        priseMap = if (targetSet.isEmpty) priseMap - maxPrise else priseMap + (maxPrise -> (targetSet))
-        square
+    for (pac <- targetPacs) {
+      if (priseMap.nonEmpty) {
+        val result = setTarget(pac, priseMap)
+        pac.target = result._1
+        priseMap = result._2
       }
     }
   }
+  def setTarget(pac: Pac, priseMap: Map[Int, Set[Square]]) = {
+    //        Console.err.println(s"${pac.pacId}")
+    val maxPrise = priseMap.keySet.max
+    val minPrise = priseMap.keySet.min
+    //        Console.err.println(s"\tprises: ${priseMap.keySet.mkString(",")}")
+
+    var targetSet = priseMap(if (pac.targetType < 2) maxPrise else minPrise)
+    //        Console.err.println(s"\ttargetSet: $targetSet")
+    val square = if (pac.targetType % 2 == 0) targetSet.minBy(square => Calc.euclidean((square.x, square.y), (pac.x, pac.y)))
+    else targetSet.maxBy(square => Calc.euclidean((square.x, square.y), (pac.x, pac.y)))
+    //        Console.err.println(s"\ttarget square: $square")
+    targetSet = targetSet - square
+    (square, if (targetSet.isEmpty) priseMap - maxPrise else priseMap + (maxPrise -> targetSet))
+  }
+  def findOpp(mypac: Set[Pac], oppac: Set[Pac], game: Game) {
+    mypac.foreach(pac => {
+      val squares = game.inMoves(pac.x, pac.y, 4)
+      val spac = oppac.map(p => (board(p.x)(p.y), p)).toMap
+      val oppHere = squares.intersect(spac.keySet)
+//      Console.err.println(s"(${pac.pacId})oppHere: $oppHere")
+      if (oppHere.nonEmpty) {
+        val typeOppMap = oppHere.groupBy(opp => spac(opp).typeId)
+        val canEatOpp = typeOppMap.find(oppType => {
+          Console.err.println(s"\tfind my ${pac.typeId} == opp ${oppType._1} need ${winpacmap(oppType._1)}")
+          winpacmap(oppType._1) == pac.typeId
+        })
+
+        val newTarget = canEatOpp match {
+          case Some((_, oppset)) =>  {
+            Console.err.println(s"(${pac.x},${pac.y}) canEatOpp: ${oppset.head} target=${pac.target}")
+            oppset.head
+          }
+          case None => if (pac.abilityCooldown == 0) {
+            val firstOpp = typeOppMap.head
+            val oppType = firstOpp._1
+            val oppSquare = firstOpp._2.head
+            Console.err.println(s"(${pac.x},${pac.y}) cannotEatOpp and switch: oppSquare=$oppSquare type=$oppType target=${pac.target}")
+            pac.action = "SWITCH"
+            pac.typeId = winpacmap(oppType)
+            oppSquare
+          } else {
+            val oppSq = typeOppMap.head._2.head
+            Console.err.println(s"(${pac.x},${pac.y}) cannotEatOpp and go: opp=$oppSq target=${pac.target}")
+            val squares = game.inMoves(pac.x, pac.y, 1) + board(pac.x)(pac.y)
+            val newSq =  squares.maxBy(sq => Calc.euclidean(sq, oppSq))
+            Console.err.println(s"new target: $newSq")
+            newSq
+          }
+        }
+        pac.target = newTarget
+      }
+    })
+  }
 
   //------------------------------------------FILE ENTRY------------------------------------------------------------------
-        val filename = "resources/pacman/pacman2.txt"
-        val bufferedSource = Source.fromFile(filename)
-        val data = bufferedSource.getLines
-        def readInt = if (data.hasNext) data.next.toInt else -1
-        def readLine = if (data.hasNext) data.next else "EOF"
+//        val filename = "resources/pacman/pacman3.txt"
+//        val bufferedSource = Source.fromFile(filename)
+//        val data = bufferedSource.getLines
+//        def readInt = if (data.hasNext) data.next.toInt else -1
+//        def readLine = if (data.hasNext) data.next else "EOF"
   //----------------------------------------------------------------------------------------------------------------------
 
 
   val Array(width, height) = (readLine split " ").map(_.toInt)
-  // Console.err.println(s"${width} $height")
+   Console.err.println(s"${width} $height")
   val lines = (for (i <- 0 until height) yield readLine).toList
   val board = linesToBoard(lines)
   val game = new Game(board)
-
-  // Console.err.println(s"${board.toString}")
+   Console.err.println(s"${board.toString}")
 
   val squares = board.toSet.filter(_.air)
   var visitedSquares = Set.empty[Square]
@@ -207,14 +264,24 @@ object Player extends App {
   var mypac = Array.fill[Pac](5)(null)
   var oppac = Array.fill[Pac](5)(null)
 
+
+  def speedUp(mypacset: Set[Pac]) {
+    mypacset.foreach(mypac => if (mypac.abilityCooldown == 0) mypac.action = "SPEED")
+  }
+
   while (true) {
     val Array(myScore, opponentScore) = (readLine split " ").map(_.toInt)
-    // Console.err.println(s"$myScore $opponentScore")
+//     Console.err.println(s"$myScore $opponentScore")
     val visiblePacCount = readLine.toInt
-    // Console.err.println(s"$visiblePacCount")
+//     Console.err.println(s"$visiblePacCount")
 
     mypac.filterNot(_ == null).foreach(_.reset)
     oppac.filterNot(_ == null).foreach(_.reset)
+/*
+    Console.err.println(s"BEFORE!!!")
+    mypac.filterNot(_ == null).foreach(pac => {
+      Console.err.println(s"id-${pac.pacId} - <${pac.action}> ${pac.command} ${pac.target}")
+    })*/
 
     for (i <- 0 until visiblePacCount) {
       val Array(_pacId, _mine, _x, _y, typeId, _speedTurnsLeft, _abilityCooldown) = readLine split " "
@@ -231,31 +298,50 @@ object Player extends App {
       val targetPac = if (mine) mypac else oppac
       if (targetPac(pacId) == null) targetPac(pacId) = new Pac(pacId, mine, x, y, typeId, speedTurnsLeft, abilityCooldown)
       else {
-        targetPac(pacId).clash = targetPac(pacId).x == x && targetPac(pacId).y == y
+        val pac = targetPac(pacId)
+        pac.needTarget = x == pac.target.x && y == pac.target.y
+        pac.clash = pac.x == x && pac.y == y
+        pac.x = x
+        pac.y = y
+        pac.typeId = typeId
+        pac.speedTurnsLeft = speedTurnsLeft
+        pac.abilityCooldown = abilityCooldown
+        pac.live = true
 
-        targetPac(pacId).x = x
-        targetPac(pacId).y = y
-        targetPac(pacId).speedTurnsLeft = speedTurnsLeft
-        targetPac(pacId).abilityCooldown = abilityCooldown
-        targetPac(pacId).live = true
       }
-//       Console.err.println(s"${_pacId} $mine ${_x} ${_y} $typeId ${_speedTurnsLeft} ${_abilityCooldown}")
+//       Console.err.println(s"${_pacId} ${_mine} ${_x} ${_y} $typeId ${_speedTurnsLeft} ${_abilityCooldown}")
     }
 
     val visiblePelletCount = readLine.toInt
 //     Console.err.println(s"$visiblePelletCount")
 //    squares.foreach(_.prise = 0)
 //     Console.err.println(s"<pellet...>")
+
+    var surePelet = List.empty[Square]
+
     for (i <- 0 until visiblePelletCount) {
       val Array(x, y, value) = (readLine split " ").map(_.toInt)
       board(x)(y).prise = value
+      surePelet = board(x)(y) :: surePelet
 //       Console.err.println(s"$x $y $value")
     }
 
-    val res = game.inMoves(3, 1, 4)
-    board.show(res)
+//    val res = game.inMoves(3, 1, 4)
+//    board.show(res)
 
-    setTarget(mypac, unvisitedSquares)
+    val mypacset = mypac.filter(goodPac).toSet
+    val opppacset = oppac.filter(goodPac).toSet
+
+
+    speedUp(mypacset)
+    findOpp(mypacset, opppacset, game)
+    setTarget(mypacset, surePelet.toSet)
+    setTarget(mypacset, unvisitedSquares)
+/*
+    Console.err.println(s"AFTER!!!")
+    mypacset.foreach(pac => {
+      Console.err.println(s"id-${pac.pacId} - ${pac.command} ${pac.target}")
+    })*/
 
     val commands = mypac.collect {
       case pac if goodPac(pac) => pac.command
