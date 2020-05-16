@@ -1,4 +1,4 @@
-//package codingames.challenge.pacman
+package codingames.challenge.pacman
 
 import scala.io.Source
 import scala.util._
@@ -122,8 +122,133 @@ abstract class AbstractGame(board: Board) {
     }
     out
   }
+
+  def bfs(x: Int, y: Int) = {
+    var i = 0
+    val square = board(x)(y)
+    var stack = List(square)
+    val marked = new Array[Boolean](board.size)
+    val edgeTo = Array.fill[Int](board.size)(Int.MaxValue)
+    val distTo = Array.fill[Int](board.size)(Int.MaxValue)
+
+    distTo(square.index) = 0
+    edgeTo(square.index) = -1
+
+    while (stack.nonEmpty) {
+      val e = stack.head
+      i = i + 1
+      marked(e.index) = true
+      val neighbours = cardinal.map(takeRawSquareTry(e.x, e.y, _, 1)).collect {
+        case res if res.isSuccess => res.get
+      }.filterNot(s => s.rock || marked(s.index))
+      neighbours.foreach(square => {
+        marked(square.index) = true
+        edgeTo(square.index) = e.index
+        distTo(square.index) = distTo(e.index) + 1
+      })
+      stack = stack.tail ::: neighbours.toList
+    }
+    (edgeTo, distTo)
+  }
+
+  def path(fromX: Int, fromY: Int, edgeTo: Array[Int]) = {
+    val square = board(fromX)(fromY)
+    var next = edgeTo(square.index)
+    var out = List.empty[Int]
+
+    while (next != -1) {
+      out = next :: out
+      next =  edgeTo(next)
+    }
+    out
+  }
 }
-class Game(board: Board) extends AbstractGame(board: Board)
+trait Neighbours extends AbstractGame {
+
+  import Direction.Direction
+
+  implicit val defaultStep: Int = 1
+  implicit val defaultDirection: Set[Direction] = cardinal
+  implicit val defaultValid: Square => Boolean = _ => true
+
+  private def collectSquares(x: Int, y: Int, direction: Direction, step: Int, valid: Square => Boolean) = {
+    (for (i <- 1 to step) yield takeRawSquareTry(x, y, direction, i)).collect {
+      case ts if ts.isSuccess => ts.get
+    }
+  }
+
+  private def collectSquaresWithDirection(x: Int, y: Int, direction: Direction, step: Int, valid: Square => Boolean) = {
+    (for (i <- 1 to step) yield takeRawSquareTry(x, y, direction, i)).collect {
+      case ts if ts.isSuccess => (ts.get, direction)
+    }
+  }
+
+  private def getSquaresWhile(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = {
+    directions.flatMap { direction =>
+      collectSquares(x, y, direction, step, valid)
+        .takeWhile(square => valid(square))
+    }
+  }
+
+  private def getSquaresWithDirectionWhile(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = {
+    directions.flatMap { direction =>
+      collectSquaresWithDirection(x, y, direction, step, valid)
+        .takeWhile(square => valid(square._1))
+    }
+  }
+
+  private def getSquares(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = {
+    directions.flatMap { direction =>
+      collectSquares(x, y, direction, step, valid)
+        .toSet.filter(valid(_))
+    }
+  }
+
+  private def getSquaresWithDirection(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = {
+    directions.flatMap { direction =>
+      (for (i <- 1 to step) yield takeRawSquareTry(x, y, direction, i)).collect {
+        case ts if ts.isSuccess => (ts.get, direction)
+      }.toSet.filter(s => valid(s._1))
+    }
+  }
+
+  def neighboursWithDirection(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = getSquaresWithDirection(x, y, directions, step, valid)
+  def neighboursWithDirection(x: Int, y: Int, step: Int, valid: Square => Boolean) = getSquaresWithDirection(x, y, defaultDirection, step, valid)
+  def neighboursWithDirection(x: Int, y: Int, directions: Set[Direction], valid: Square => Boolean) = getSquaresWithDirection(x, y, directions, defaultStep, valid)
+  def neighboursWithDirection(x: Int, y: Int, directions: Set[Direction], step: Int) = getSquaresWithDirection(x, y, directions, step, defaultValid)
+  def neighboursWithDirection(x: Int, y: Int, valid: Square => Boolean) = getSquaresWithDirection(x, y, defaultDirection, defaultStep, valid)
+  def neighboursWithDirection(x: Int, y: Int, step: Int) = getSquaresWithDirection(x, y, defaultDirection, step, defaultValid)
+  def neighboursWithDirection(x: Int, y: Int, directions: Set[Direction]) = getSquaresWithDirection(x, y, directions, defaultStep, defaultValid)
+  def neighboursWithDirection(x: Int, y: Int) = getSquaresWithDirection(x, y, defaultDirection, defaultStep, defaultValid)
+
+  def neighbours(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = getSquares(x, y, directions, step, valid)
+  def neighbours(x: Int, y: Int, step: Int, valid: Square => Boolean) = getSquares(x, y, defaultDirection, step, valid)
+  def neighbours(x: Int, y: Int, directions: Set[Direction], valid: Square => Boolean) = getSquares(x, y, directions, defaultStep, valid)
+  def neighbours(x: Int, y: Int, directions: Set[Direction], step: Int) = getSquares(x, y, directions, step, defaultValid)
+  def neighbours(x: Int, y: Int, valid: Square => Boolean) = getSquares(x, y, defaultDirection, defaultStep, valid)
+  def neighbours(x: Int, y: Int, step: Int) = getSquares(x, y, defaultDirection, step, defaultValid)
+  def neighbours(x: Int, y: Int, directions: Set[Direction]) = getSquares(x, y, directions, defaultStep, defaultValid)
+  def neighbours(x: Int, y: Int) = getSquares(x, y, defaultDirection, defaultStep, defaultValid)
+
+  def neighboursWhile(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = getSquaresWhile(x, y, directions, step, valid)
+  def neighboursWhile(x: Int, y: Int, step: Int, valid: Square => Boolean) = getSquaresWhile(x, y, defaultDirection, step, valid)
+  def neighboursWhile(x: Int, y: Int, directions: Set[Direction], valid: Square => Boolean) = getSquaresWhile(x, y, directions, defaultStep, valid)
+  def neighboursWhile(x: Int, y: Int, directions: Set[Direction], step: Int) = getSquaresWhile(x, y, directions, step, defaultValid)
+  def neighboursWhile(x: Int, y: Int, valid: Square => Boolean) = getSquaresWhile(x, y, defaultDirection, defaultStep, valid)
+  def neighboursWhile(x: Int, y: Int, step: Int) = getSquaresWhile(x, y, defaultDirection, step, defaultValid)
+  def neighboursWhile(x: Int, y: Int, directions: Set[Direction]) = getSquaresWhile(x, y, directions, defaultStep, defaultValid)
+  def neighboursWhile(x: Int, y: Int) = getSquaresWhile(x, y, defaultDirection, defaultStep, defaultValid)
+
+  def neighboursWithDirectionWhile(x: Int, y: Int, directions: Set[Direction], step: Int, valid: Square => Boolean) = getSquaresWithDirectionWhile(x, y, directions, step, valid)
+  def neighboursWithDirectionWhile(x: Int, y: Int, step: Int, valid: Square => Boolean) = getSquaresWithDirectionWhile(x, y, defaultDirection, step, valid)
+  def neighboursWithDirectionWhile(x: Int, y: Int, directions: Set[Direction], valid: Square => Boolean) = getSquaresWithDirectionWhile(x, y, directions, defaultStep, valid)
+  def neighboursWithDirectionWhile(x: Int, y: Int, directions: Set[Direction], step: Int) = getSquaresWithDirectionWhile(x, y, directions, step, defaultValid)
+  def neighboursWithDirectionWhile(x: Int, y: Int, valid: Square => Boolean) = getSquaresWithDirectionWhile(x, y, defaultDirection, defaultStep, valid)
+  def neighboursWithDirectionWhile(x: Int, y: Int, step: Int) = getSquaresWithDirectionWhile(x, y, defaultDirection, step, defaultValid)
+  def neighboursWithDirectionWhile(x: Int, y: Int, directions: Set[Direction]) = getSquaresWithDirectionWhile(x, y, directions, defaultStep, defaultValid)
+  def neighboursWithDirectionWhile(x: Int, y: Int) = getSquaresWithDirectionWhile(x, y, defaultDirection, defaultStep, defaultValid)
+}
+class Game(board: Board) extends AbstractGame(board: Board) with Neighbours
 class Pac(val pacId: Int, val mine: Boolean, var x: Int, var y: Int, var typeId: String, var speedTurnsLeft: Int, var abilityCooldown: Int, var live: Boolean = true) {
   var needTarget = true
   var target: Square = _
@@ -159,8 +284,6 @@ class Pac(val pacId: Int, val mine: Boolean, var x: Int, var y: Int, var typeId:
 
 
 
-
-
 object Player extends App {
   val rand = new Random
   val winpacmap = Map("SCISSORS" -> "ROCK", "ROCK" -> "PAPER", "PAPER" -> "SCISSORS")
@@ -168,67 +291,22 @@ object Player extends App {
   def dummy(squares: Set[Square], pac: Pac) = squares
   def directY(square: Square, pac: Pac) = Math.abs(pac.y - square.y)
   def directX(square: Square, pac: Pac) = Math.abs(pac.x - square.x)
-  def onlinePrise(squares: Set[Square], pac: Pac) = {
-    val vLine = board(pac.x)
-    val hLine = board.squareMatrix(pac.y)
-
-    val closestHighRockArr = vLine.filter(square => square.rock && square.y < pac.y)
-    val high = if (closestHighRockArr.isEmpty) -1 else closestHighRockArr.minBy(directY(_, pac)).y
-//
-    val closestLowRockArr = vLine.filter(square => square.rock && square.y > pac.y)
-    val low = if (closestLowRockArr.isEmpty) height else closestHighRockArr.minBy(directY(_, pac)).y
-
-    val closestLeftRockArr = hLine.filter(square => square.rock && square.x < pac.x)
-    val left = if (closestLeftRockArr.isEmpty) -1 else closestLeftRockArr.minBy(directX(_, pac)).x
-
-    val closestRightRockArr = hLine.filter(square => square.rock && square.x > pac.x)
-    val right = if (closestRightRockArr.isEmpty) width else closestRightRockArr.minBy(directX(_, pac)).x
-
-    squares.filter(square => (pac.y == square.y && (square.x < right && square.x > left)) ||
-                             (pac.x == square.x && (square.y < high && square.y > low)))
-  }
-
+  def onlinePrise(squares: Set[Square], pac: Pac) = visibleSquaresMap(board(pac.x)(pac.y)).intersect(squares)
   def goodPac(pac: Pac) = pac != null && pac.live && !pac.typeId.startsWith("D")
   def linesToBoard(lines: List[String]): Board = new Board(lines, ' ', '#')
 
-  //------------------------------------------FILE ENTRY------------------------------------------------------------------
-//        val filename = "resources/pacman/pacman4.txt"
-//        val bufferedSource = Source.fromFile(filename)
-//        val data = bufferedSource.getLines
-//        def readInt = if (data.hasNext) data.next.toInt else -1
-//        def readLine = if (data.hasNext) data.next else "EOF"
-  //----------------------------------------------------------------------------------------------------------------------
-
-
-  val Array(width, height) = (readLine split " ").map(_.toInt)
-   Console.err.println(s"${width} $height")
-  val lines = (for (i <- 0 until height) yield readLine).toList
-  val board = linesToBoard(lines)
-  val game = new Game(board)
-   Console.err.println(s"${board.toString}")
-
-  val squares = board.toSet.filter(_.air)
-  var visitedSquares = Set.empty[Square]
-  var unvisitedSquares = squares
-  var mypac = Array.fill[Pac](5)(null)
-  var oppac = Array.fill[Pac](5)(null)
+//------------------------------------------FILE ENTRY------------------------------------------------------------------
+      val filename = "resources/pacman/pacman4.txt"
+      val bufferedSource = Source.fromFile(filename)
+      val data = bufferedSource.getLines
+      def readInt = if (data.hasNext) data.next.toInt else -1
+      def readLine = if (data.hasNext) data.next else "EOF"
+//----------------------------------------------------------------------------------------------------------------------
 
 
   def speedUp(mypacset: Set[Pac]) {
     mypacset.foreach(mypac => if (mypac.abilityCooldown == 0) mypac.setAction("SPEED"))
   }
-
-
-
-
-
-
-
-
-
-
-
-
   def resolveMyClash(pacs: Set[Pac]) {
     val clashTarget = pacs.filter(pac => pac.clash && pac.needTarget)
     if (clashTarget.nonEmpty) {
@@ -237,7 +315,6 @@ object Player extends App {
       minPac.setTarget(minPac.back)
     }
   }
-
   def cannotEatOpp(pac: Pac, typeOppMap: Map[String, Set[Square]], canEatMe: Option[(String, Set[Square])]) {
     if (pac.abilityCooldown == 0) {
       val firstOpp = typeOppMap.head
@@ -260,7 +337,6 @@ object Player extends App {
       }
     }
   }
-
   def calculateEnemy(pac: Pac, oppHere: Set[Square], spac: Map[Square, Pac]) {
     val typeOppMap = oppHere.groupBy(opp => spac(opp).typeId)
 
@@ -281,7 +357,6 @@ object Player extends App {
       case None => cannotEatOpp(pac, typeOppMap, canEatMe)
     }
   }
-
   def resolveEnemies(pacs: Set[Pac], oppacset: Set[Pac], game: Game) {
     pacs.filter(_.needTarget).foreach(pac => {
       val squares = game.inMoves(pac.x, pac.y, 4)
@@ -292,13 +367,11 @@ object Player extends App {
       }
     })
   }
-
   def findSquare(pacs: Set[Pac], sureSquares: Set[Square], unvisitedSquares: Set[Square]) {
     setvalTarget(pacs, squares.filter(_.prise == 10), dummy)                                  // prise = 10
     setSingleTarget(pacs, sureSquares.filter(_.prise == 1), onlinePrise)                      // visible prise on the same line
     setSingleTarget(pacs, unvisitedSquares, dummy)                                            // unvisited squares
   }
-
   def setvalTarget(pacs: Set[Pac], squares: Set[Square], f: (Set[Square], Pac) => Set[Square]) {
     val squaresPacs = pacs.map(pac => (board(pac.x)(pac.y), pac))
     val cartesian = squaresPacs.flatMap(squarePac => squares.map(priseSquare => (priseSquare, squarePac._1, squarePac._2 , Calc.euclidean(priseSquare, squarePac._1))))
@@ -310,7 +383,6 @@ object Player extends App {
 //      Console.err.println(s"$sortedData")
     }
   }
-
   def setSingleTarget(pacs: Set[Pac], squares: Set[Square], f: (Set[Square], Pac) => Set[Square]): Set[Square] = {
     var targetSquare = squares
     pacs.filter(_.needTarget).foreach(pac => {
@@ -323,12 +395,34 @@ object Player extends App {
     })
     targetSquare
   }
-
   def calculateTargets(mypacset: Set[Pac], oppacset: Set[Pac], sureSquares: Set[Square], unvisitedSquares: Set[Square], game: Game) {
     resolveMyClash(mypacset)
     resolveEnemies(mypacset, oppacset, game)
     findSquare(mypacset, sureSquares, unvisitedSquares)
   }
+  def calculateUnvisitedSquares(unvisitedSquares: Set[Square], mypacset: Set[Pac], surePelet: Set[Square], game: Game) = {
+    val allVisible = mypacset.flatMap(pac => visibleSquaresMap(board(pac.x)(pac.y)))
+    val allEmpty = allVisible.filterNot(surePelet)
+    unvisitedSquares.filterNot(allEmpty)
+  }
+
+  val Array(width, height) = (readLine split " ").map(_.toInt)
+  Console.err.println(s"${width} $height")
+  val lines = (for (i <- 0 until height) yield readLine).toList
+  val board = linesToBoard(lines)
+  val game = new Game(board)
+  Console.err.println(s"${board.toString}")
+
+  val squares = board.toSet.filter(_.air)
+  var visitedSquares = Set.empty[Square]
+  var unvisitedSquares = squares
+  var mypac = Array.fill[Pac](5)(null)
+  var oppac = Array.fill[Pac](5)(null)
+  val visibleSquaresMap = squares.map(square => (square, game.neighboursWhile(square.x, square.y, game.cardinal, width, _.air))).toMap
+  val bfsMap = game.bfs(3,1)
+  val calcPath = game.path(8, 5, bfsMap._1)
+
+
 
   while (true) {
     val Array(myScore, opponentScore) = (readLine split " ").map(_.toInt)
@@ -379,25 +473,23 @@ object Player extends App {
 //    squares.foreach(_.prise = 0)
 //     Console.err.println(s"<pellet...>")
 
-    var surePelet = List.empty[Square]
+    var surePelet = Set.empty[Square]
 
     squares.foreach(square => if (square.prise == 10) square.prise = 0)
 
     for (i <- 0 until visiblePelletCount) {
       val Array(x, y, value) = (readLine split " ").map(_.toInt)
       board(x)(y).prise = value
-      surePelet = board(x)(y) :: surePelet
+      surePelet = surePelet + board(x)(y)
 //       Console.err.println(s"$x $y $value")
     }
-
-//    val res = game.inMoves(3, 1, 4)
-//    board.show(res)
 
     val mypacset = mypac.filter(goodPac).toSet
     val opppacset = oppac.filter(goodPac).toSet
 
 
-    calculateTargets(mypacset, opppacset, surePelet.toSet, unvisitedSquares, game)
+    unvisitedSquares = calculateUnvisitedSquares(unvisitedSquares, mypacset, surePelet, game)
+    calculateTargets(mypacset, opppacset, surePelet, unvisitedSquares, game)
 //    speedUp(mypacset)
 //    findOpp(mypacset, opppacset, game)
 //    setTarget(mypacset, surePelet.toSet)
