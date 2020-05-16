@@ -166,8 +166,29 @@ object Player extends App {
   val winpacmap = Map("SCISSORS" -> "ROCK", "ROCK" -> "PAPER", "PAPER" -> "SCISSORS")
   val losepacmap = Map("PAPER" -> "ROCK", "SCISSORS" -> "PAPER", "ROCK" -> "SCISSORS")
   def dummy(squares: Set[Square], pac: Pac) = squares
-  def onlinePrise(squares: Set[Square], pac: Pac) = squares.filter(square => pac.x == square.x || pac.y == square.y)
-  def goodPac(pac: Pac) = pac != null && pac.live
+  def directY(square: Square, pac: Pac) = Math.abs(pac.y - square.y)
+  def directX(square: Square, pac: Pac) = Math.abs(pac.x - square.x)
+  def onlinePrise(squares: Set[Square], pac: Pac) = {
+    val vLine = board(pac.x)
+    val hLine = board.squareMatrix(pac.y)
+
+    val closestHighRockArr = vLine.filter(square => square.rock && square.y < pac.y)
+    val high = if (closestHighRockArr.isEmpty) -1 else closestHighRockArr.minBy(directY(_, pac)).y
+//
+    val closestLowRockArr = vLine.filter(square => square.rock && square.y > pac.y)
+    val low = if (closestLowRockArr.isEmpty) height else closestHighRockArr.minBy(directY(_, pac)).y
+
+    val closestLeftRockArr = hLine.filter(square => square.rock && square.x < pac.x)
+    val left = if (closestLeftRockArr.isEmpty) -1 else closestLeftRockArr.minBy(directX(_, pac)).x
+
+    val closestRightRockArr = hLine.filter(square => square.rock && square.x > pac.x)
+    val right = if (closestRightRockArr.isEmpty) width else closestRightRockArr.minBy(directX(_, pac)).x
+
+    squares.filter(square => (pac.y == square.y && (square.x < right && square.x > left)) ||
+                             (pac.x == square.x && (square.y < high && square.y > low)))
+  }
+
+  def goodPac(pac: Pac) = pac != null && pac.live && !pac.typeId.startsWith("D")
   def linesToBoard(lines: List[String]): Board = new Board(lines, ' ', '#')
 
   //------------------------------------------FILE ENTRY------------------------------------------------------------------
@@ -252,10 +273,10 @@ object Player extends App {
       losepacmap(oppType._1) == pac.typeId
     })
 
-    val newTarget = canEatOpp match {
+    canEatOpp match {
       case Some((_, oppset)) =>  {
 //        Console.err.println(s"(${pac.x},${pac.y}) canEatOpp: ${oppset.head} target=${pac.target}")
-        oppset.head
+        pac.setTarget(oppset.head)
       }
       case None => cannotEatOpp(pac, typeOppMap, canEatMe)
     }
