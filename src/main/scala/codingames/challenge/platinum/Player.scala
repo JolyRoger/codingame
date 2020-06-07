@@ -2,15 +2,22 @@ import math._
 import scala.util._
 import scala.io.StdIn._
 
+class Zone(val zid: Int, ownerId: Int, podsP0: Int, podsP1: Int, visible: Boolean,  ./////x)
 /**
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
  **/
 object Player extends App {
+    def fillEdge(str: Array[String]) {
+        val from = str(0).toInt
+        val to = str(1).toInt
+        edgeData(from) += to
+        edgeData(to) += from
+    }
     // playerCount: the amount of players (always 2)
     // myId: my player ID (0 or 1)
     // zoneCount: the amount of zones on the map
-    // linkCount: the amount of links between all zones
+    // linkCount: the amount of links between all zonest
     val Array(playerCount, myId, zoneCount, linkCount) = (readLine split " ").map (_.toInt)
     Console.err.println(s"$playerCount $myId $zoneCount $linkCount")
     Console.err.println(s"zone data -----------")
@@ -21,10 +28,10 @@ object Player extends App {
         // Console.err.println(s"\t$zoneId $platinumSource")
     }
     Console.err.println(s"link data -----------")
-    for(i <- 0 until linkCount) {
-        val Array(zone1, zone2) = (readLine split " ").map (_.toInt)
-        // Console.err.println(s"\t$zone1 $zone2")
-    }
+
+    val edgeData = Array.fill[Set[Int]](zoneCount)(Set.empty[Int])
+
+    for(i <- 0 until linkCount) fillEdge(readLine split " ")
 
     Console.err.println
 

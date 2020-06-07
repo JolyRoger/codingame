@@ -19,7 +19,7 @@ object Player extends App {
   val output = true
   val outputLikeInput = false
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "iceandfire0.txt"
+  val filename = "iceandfire/iceandfire0.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
