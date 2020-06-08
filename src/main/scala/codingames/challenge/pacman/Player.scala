@@ -1,4 +1,4 @@
-//package codingames.challenge.pacman
+package codingames.challenge.pacman
 
 import TargetType.TargetType
 import scala.io.Source
