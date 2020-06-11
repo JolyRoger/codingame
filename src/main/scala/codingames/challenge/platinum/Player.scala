@@ -1,4 +1,4 @@
-package codingames.challenge.platinum
+//package codingames.challenge.platinum
 
 import math._
 import scala.io.Source
@@ -107,11 +107,21 @@ object Player extends App {
     // Write an action using println
     // To debug: //      Console.err.println("Debug messages...")
 
+    var taken = Set.empty[Int]
+
     val targetStr = mypods.map(zone => {
+//    val Array(num, from, to) = mypods.map(zone => {
       val groupedEdges = edgeData(zone.zid).groupBy(edge => zoneData(edge).rating)
-      val edges = groupedEdges(groupedEdges.keys.min)
+      val _edges = groupedEdges(groupedEdges.keys.min)
+      val notTakenEdges = _edges -- taken
+      val edges = if (notTakenEdges.isEmpty) _edges else notTakenEdges
       val div = smartDivide(zone.mypods, edges.size).zip(edges).filterNot(_._1 == 0)
-      div.map(d1 => s"${d1._1} ${zone.zid} ${d1._2}").mkString(" ")
+//      div.map(d1 => (d1._1, zone.zid, d1._2))
+
+      div.map(d1 => {
+        taken += d1._2
+        s"${d1._1} ${zone.zid} ${d1._2}"
+      }).mkString(" ")
     })
 
 
