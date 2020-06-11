@@ -1,4 +1,4 @@
-//package codingame.easy.asciiart
+package codingame.easy.asciiart
 
 import scala.io.StdIn._
 
