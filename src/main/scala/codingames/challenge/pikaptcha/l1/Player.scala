@@ -1,5 +1,7 @@
 package codingames.challenge.pikaptcha.l1
 
+import scala.io.StdIn._
+
 object Player extends App {
   val Array(width, height) = for (i <- readLine split " ") yield i.toInt
   val arr = (for (i <- 0 until height) yield readLine).toArray.map(_.toCharArray)

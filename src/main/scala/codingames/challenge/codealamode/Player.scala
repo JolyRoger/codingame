@@ -1,5 +1,7 @@
 package codingames.challenge.codealamode
 
+import scala.io.StdIn._
+
 object Player extends App {
 //  case class Recipe (ingr: List[Map[String, Int]], f: List[Map[String, Int]] => List[Map[String, Int]])
   type Point = (Int, Int)

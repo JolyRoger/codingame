@@ -1,7 +1,6 @@
 package codingames.challenge.pikaptcha.l2
 
-import math._
-import scala.util._
+import scala.io.StdIn._
 
 /**
   * Auto-generated code below aims at helping you parse

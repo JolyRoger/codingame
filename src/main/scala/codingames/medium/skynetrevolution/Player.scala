@@ -1,6 +1,7 @@
 package codingames.medium.skynetrevolution
 
 import scala.collection.mutable
+import scala.io.StdIn._
 
 object Player extends App {
 

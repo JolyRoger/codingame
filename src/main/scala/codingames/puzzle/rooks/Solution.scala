@@ -1,5 +1,7 @@
 package codingames.puzzle.rooks
 
+import scala.io.StdIn._
+
 object Solution extends App {
 	type Point = (Int, Int)
 	type Rooks = Map[Point, Boolean]

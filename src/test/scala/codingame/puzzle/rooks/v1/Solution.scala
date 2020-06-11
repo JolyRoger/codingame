@@ -4,7 +4,7 @@ import scala.collection.mutable
 import scala.io.Source
 
 object Solution extends App {
-  val filename = "rooks3.txt"
+  val filename = "rooks/rooks3.txt"
   val bufferedSource = Source.fromFile(filename)
 
   val data = bufferedSource.getLines().toList

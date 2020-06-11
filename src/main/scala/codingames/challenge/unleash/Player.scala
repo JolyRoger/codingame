@@ -1,6 +1,7 @@
 package codingames.challenge.unleash
 
 import math._
+import scala.io.StdIn._
 
 case class Square2(x: Int, y: Int) {
   lazy val getX = x

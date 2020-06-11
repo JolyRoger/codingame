@@ -1,0 +1,19 @@
+15 15 0
+xxxxxxx.xxxxxxx
+xxxxxxx....xxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxx.xxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxx.xxxx
+xxxxxxxxxxxxxxx
+xxxxxxxxxx.xxxx
+xxxxxxx.x...xxx
+14 10 6 6 0 0 0 0
+NA
+MOVE W|SILENCE
