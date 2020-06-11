@@ -1,32 +1,45 @@
 package codingames.challenge.platinum
 
 import math._
+import scala.io.Source
 import scala.util._
 import scala.io.StdIn._
 
-class Zone(val zid: Int, var mine: Boolean, var mypods: Int, var oppods: Int, var visible: Boolean, var platinum: Int) { }
+class Zone(val zid: Int, var mine: Boolean, var mypods: Int, var oppods: Int, var visible: Boolean, var platinum: Int) {
+  var rating = 0
+}
 
 /**
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
  **/
 object Player extends App {
+//------------------------------------------FILE ENTRY------------------------------------------------------------------
+//      val filename = "resources/platinum/pl.txt"
+//      val bufferedSource = Source.fromFile(filename)
+//      val data = bufferedSource.getLines
+//      def readInt = if (data.hasNext) data.next.toInt else -1
+//      def readLine = if (data.hasNext) data.next else "EOF"
+//----------------------------------------------------------------------------------------------------------------------
+
   def fillEdge(str: Array[String]) {
     val from = str(0).toInt
     val to = str(1).toInt
+    //      Console.err.println(s"$from $to")
     edgeData(from) += to
     edgeData(to) += from
   }
   def smartDivide(dividend: Int, divider: Int) = {
-    var res = dividend / divider
+    if (divider == 0) List.empty[Int] else {
+
+    val res = dividend / divider
     var rest = dividend % divider
-    Console.err.println(s"$res $rest")
-    val out = (for (i <- (0 until divider)) yield
+    (for (i <- (0 until divider)) yield
       res + { if (rest > 0) {
         rest -= 1
         1
       } else 0 }).toList
-    out
+    }
   }
 
   // playerCount: the amount of players (always 2)
@@ -34,15 +47,15 @@ object Player extends App {
   // zoneCount: the amount of zones on the map
   // linkCount: the amount of links between all zonest
   val Array(playerCount, myId, zoneCount, linkCount) = (readLine split " ").map(_.toInt)
-  Console.err.println(s"$playerCount $myId $zoneCount $linkCount")
-  Console.err.println(s"zone data -----------")
+  //      Console.err.println(s"$playerCount $myId $zoneCount $linkCount")
+//  //      Console.err.println(s"zone data -----------")
   for (i <- 0 until zoneCount) {
     // zoneId: this zone's ID (between 0 and zoneCount-1)
     // platinumSource: Because of the fog, will always be 0
     val Array(zoneId, platinumSource) = (readLine split " ").map(_.toInt)
-    // Console.err.println(s"\t$zoneId $platinumSource")
+     //      Console.err.println(s"$zoneId $platinumSource")
   }
-  Console.err.println(s"link data -----------")
+//  //      Console.err.println(s"link data -----------")
 
   val edgeData = Array.fill[Set[Int]](zoneCount)(Set.empty[Int])
   val zoneData = new Array[Zone](zoneCount)
@@ -53,11 +66,12 @@ object Player extends App {
 
   for (i <- 0 until linkCount) fillEdge(readLine split " ")
 
-  Console.err.println
+//  //      Console.err.println
 
   // game loop
   while (true) {
     val myPlatinum = readLine.toInt // your available Platinum
+    Console.err.println(s"myPlatinum=$myPlatinum")
 
     mypods = Set.empty[Zone]
     oppods = Set.empty[Zone]
@@ -81,26 +95,28 @@ object Player extends App {
                                                         zoneData(zid).oppods = if (myId == 0) podsP1 else podsP0
                                                         zoneData(zid).visible = visible == 1
                                                         zoneData(zid).platinum = platinum }
-      if (zoneData(zid).mypods > 0) mypods = mypods + zoneData(zid)
+      if (zoneData(zid).mypods > 0) {
+        zoneData(zid).rating += 1
+        mypods = mypods + zoneData(zid)
+      }
       if (zoneData(zid).oppods > 0) oppods = oppods + zoneData(zid)
 
-      Console.err.println(s"$zid $ownerId $podsP0 $podsP1 $visible $platinum")
+      //      Console.err.println(s"$zid $ownerId $podsP0 $podsP1 $visible $platinum")
     }
 
     // Write an action using println
-    // To debug: Console.err.println("Debug messages...")
+    // To debug: //      Console.err.println("Debug messages...")
 
-    mypods.foreach(zone => {
-      val edges = edgeData(zone.zid)
-      val div = smartDivide(zone.mypods, edges.size)
-      div.foreach(d => {
-        s"$d "
-      })
+    val targetStr = mypods.map(zone => {
+      val groupedEdges = edgeData(zone.zid).groupBy(edge => zoneData(edge).rating)
+      val edges = groupedEdges(groupedEdges.keys.min)
+      val div = smartDivide(zone.mypods, edges.size).zip(edges).filterNot(_._1 == 0)
+      div.map(d1 => s"${d1._1} ${zone.zid} ${d1._2}").mkString(" ")
     })
 
 
     // first line for movement commands, second line no longer used (see the protocol in the statement for details)
-    println("WAIT")
+    println(s"${targetStr.mkString(" ")}")
     println("WAIT")
   }
 }
