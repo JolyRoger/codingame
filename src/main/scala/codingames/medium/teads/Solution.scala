@@ -1,8 +1,12 @@
+package codingames.medium.teads
+
 import scala.collection.mutable
+import scala.io.StdIn._
+
 /**
-  * Auto-generated code below aims at helping you parse
-  * the standard input according to the problem statement.
-  **/
+ * Auto-generated code below aims at helping you parse
+ * the standard input according to the problem statement.
+ **/
 object Solution extends App {
   class Graph(N: Int) {
     val adj = (for (i <- 0 until N) yield List[Int]()).toArray

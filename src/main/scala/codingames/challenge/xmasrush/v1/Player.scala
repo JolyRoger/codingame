@@ -2,6 +2,7 @@ package codingames.challenge.xmasrush.v1
 
 import math._
 import scala.collection.mutable
+import scala.io.StdIn._
 
 class Graph(N: Int) {
   val adj = (for (i <- 0 until N) yield List[Int]()).toArray

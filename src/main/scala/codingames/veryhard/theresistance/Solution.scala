@@ -1,6 +1,7 @@
 package codingames.veryhard.theresistance
 
 import java.util.regex.Pattern
+import scala.io.StdIn._
 
 object Solution extends App {
 

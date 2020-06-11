@@ -1,5 +1,7 @@
 package codingames.hard.bridge.v2
 
+import scala.io.StdIn._
+
 object Player extends App {
   type Point = Array[Int]
   type StackItem = (Int, List[Point])

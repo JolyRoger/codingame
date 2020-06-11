@@ -1,8 +1,8 @@
-//package codingames.challenge.iceandfire
+package codingames.challenge.iceandfire
 
 import codingames.challenge.iceandfire.src.army.{Enemy, Me, Soldier}
 import codingames.challenge.iceandfire.src.{Building, Wait, World}
-import scala.math.{pow, sqrt}
+import scala.io.StdIn._
 
 object Player extends App {
 
