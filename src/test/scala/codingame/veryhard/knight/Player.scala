@@ -1,7 +1,6 @@
 package codingame.veryhard.knight
 
 import math._
-import scala.reflect.ClassTag
 import scala.util._
 
 /**
@@ -63,7 +62,7 @@ object Player extends App {
   val booleanMapFunction = (unit: (Boolean, Boolean)) => unit._1 && unit._2
   def euclidean(a: Point, b: Point) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
   def distance(from: Point, dimension: Point) = (for (j <- 0 until dimension._2; i <- 0 until dimension._1) yield euclidean(from, (i, j))).toArray
-  def delta[T:ClassTag](matrix1: Array[T], matrix2: Array[T], mapFunction: ((T, T)) => T) = matrix1 zip matrix2 map mapFunction
+  def delta[T](matrix1: Array[T], matrix2: Array[T], mapFunction: ((T, T)) => T) = matrix1 zip matrix2 map mapFunction
   def cut(resMatrix: Array[Double], cutMatrix: Array[Boolean], bombdir: String,
           bmp: ((Boolean, Boolean)) => Boolean) = {
     val newCut = resMatrix.map { bombdir match {
