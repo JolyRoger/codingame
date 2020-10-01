@@ -15,6 +15,18 @@ object Player extends App {
   val Array(x0, y0) = for (i <- readLine split " ") yield i.toInt
   Console.err.println(s"x0=$x0 y0=$y0")
 
+  val size = w * h
+  val distances: Array[Array[Double]] = Array.fill[Array[Double]](size)(new Array(size))
+
+  for (p1y <- 0 until h;p1x <- 0 until w; p2y <- 0 until h;p2x <- 0 until w) {                                         // FIXME
+    val distance = euclidean((p1x,p1y), (p2x,p2y))
+    val p1Index = p1y * w + p1x
+    val p2Index = p2y * w + p2x
+    distances(p1Index)(p2Index) = distance
+    distances(p2Index)(p1Index) = distance
+  }
+
+
   val dimension = (w, h)
   var x = x0
   var y = y0
@@ -41,17 +53,19 @@ object Player extends App {
     delta[Boolean](cutMatrix, newCut, bmp)
   }
 
-  var prevMatrix = distance((x, y), dimension)
+//  var prevMatrix = distance((x, y), dimension)
+  var prevMatrix = distances(y * w + x)
 
   def nextMove(x: Int, y: Int, bombdir: String): (Int, Int) = {
     if (bombdir == "UNKNOWN") {
-      val uncheckedPoint = cutMatrix.zipWithIndex.filter(_._1 == true)
+      val uncheckedPoint = cutMatrix.zipWithIndex.filter(_._1)
       val semisize = uncheckedPoint.length / 2
       val index = toMatrix(uncheckedPoint(semisize)._2)
       cutMatrix(index) = false
       index
     } else {
-      var distanceMatrix = distance((x, y), dimension)
+//      var distanceMatrix = distance((x, y), dimension)
+      val distanceMatrix = distances(y * w + x)
       val processedMatrix = Player.delta[Double](prevMatrix, distanceMatrix, doubleMapFunction).toArray
       val cutPoints = cut(processedMatrix, cutMatrix, bombdir, booleanMapFunction).toArray
       prevMatrix = distanceMatrix
