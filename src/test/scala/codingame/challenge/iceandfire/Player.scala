@@ -24,7 +24,7 @@ object Player extends App {
   val data = bufferedSource.getLines
 
   def readInt = if (data.hasNext) data.next.toInt else -1
-  def readLine = if (data.hasNext) data.next else "\0"
+  def readLine = if (data.hasNext) data.next else "\u0000"
 
 
   //------------------------------------------CLASSES---------------------------------------------------------------------
