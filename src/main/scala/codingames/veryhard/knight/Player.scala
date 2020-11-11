@@ -1,49 +1,30 @@
 package codingames.veryhard.knight
 
 import math._
-import scala.io.Source
 import scala.io.StdIn._
 import scala.reflect.ClassTag
 
 object Player extends App {
   type Point = (Int, Int)
-  type Matrix[T] = Array[Array[T]]
-  type DistData = Matrix[Matrix[Double]]
-
-  //------------------------------------------FILE ENTRY------------------------------------------------------------------
-        val filename = "resources/knight.txt"
-        val bufferedSource = Source.fromFile(filename)
-        val data = bufferedSource.getLines
-        def readInt = if (data.hasNext) data.next.toInt else -1
-        def readLine = if (data.hasNext) data.next else "EOF"
-  //----------------------------------------------------------------------------------------------------------------------
+  type Matrix[T] = Array[T]
 
   var euclideanCounter = 0
   val Array(w, h) = for (i <- readLine split " ") yield i.toInt
-  Console.err.println(s"w[idth]=$w\th[eight]=$h")
   val n = readInt // maximum number of turns before game over.
-  Console.err.println(s"n[maximum number of turns before game over]=$n")
   val Array(x0, y0) = for (i <- readLine split " ") yield i.toInt
-  Console.err.println(s"x0[initial]=$x0\ty0[initial]=$y0")
 
   val size = w * h
-  val distances: Array[Array[Double]] = Array.fill[Array[Double]](size)(new Array(size))
-  val distanceData: DistData = Array.ofDim[Double](w,h,w,h)
+  val distances: Array[Array[Double]] = Array.ofDim[Double](size,size)
 
   for (p1y <- 0 until h;p1x <- 0 until w; p2y <- 0 until h;p2x <- 0 until w) {                                         // FIXME
-    if (distanceData(p1x)(p1y)(p2x)(p2y) < 0.5) {
+    val p1Index = p1y * w + p1x
+    val p2Index = p2y * w + p2x
+    if (distances(p1Index)(p2Index) < 0.5) {
       val distance = euclidean((p1x,p1y), (p2x,p2y))
-      distanceData(p1x)(p1y)(p2x)(p2y) = distance
-      distanceData(p2x)(p2y)(p1x)(p1y) = distance
-      if (p1y < w && p2y < w && p1x < h && p2x < h) {
-        distanceData(p1y)(p1x)(p2y)(p2x) = distance
-        distanceData(p2y)(p2x)(p1y)(p1x) = distance
-      }
+      distances(p1Index)(p2Index) = distance
+      distances(p2Index)(p1Index) = distance
     }
   }
-
-  Console.err.println(s"euclideanCounter=$euclideanCounter")
-//  printData(w, distanceData)
 
   val dimension = (w, h)
   var x = x0
@@ -54,30 +35,10 @@ object Player extends App {
   val doubleMapFunction = (unit: (Double, Double)) => unit._1 - unit._2
   val booleanMapFunction = (unit: (Boolean, Boolean)) => unit._1 && unit._2
 
-  def printData(w: Int, dist: DistData) = {
-    for (i <- 0 until size) {
-      Console.err.println(s"======================")
-      val p1 = toMatrix(w, i)
-      printMatrix(dist(p1._1)(p1._2))
-    }
-  }
-  def printMatrix(matrix: Matrix[Double]) = {
-    for (j <- matrix(0).indices; i <- matrix.indices) {
-      val point = matrix(i)(j)
-      Console.err.print(s"${if (i == 0) "\n" else "\t"}")
-      Console.err.print(s"[$i,$j]=")
-      Console.err.print(f"$point%1.2f")
-    }
-    Console.err.println
-  }
-
   def ~=(x: Double, y: Double, precision: Double) = (x - y).abs < precision
-  def toMatrix(w : Int, number: Int): (Int, Int) = (number % w, number / w)
+  def toMatrix(number: Int): (Int, Int) = (number % w, number / w)
   implicit def toNumber(point: (Int, Int)): Int = point._2 * w + point._1 % w
-  def euclidean(a: Point, b: Point) = {
-    euclideanCounter += 1
-    sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
-  }
+  def euclidean(a: Point, b: Point) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
   def distance(from: Point, dimension: Point) = (for (j <- 0 until dimension._2; i <- 0 until dimension._1) yield euclidean(from, (i, j))).toArray
   def delta[T:ClassTag](matrix1: Array[T], matrix2: Array[T], mapFunction: ((T, T)) => T) = matrix1 zip matrix2 map mapFunction
   def cut(resMatrix: Array[Double], cutMatrix: Array[Boolean], bombdir: String,
@@ -91,18 +52,50 @@ object Player extends App {
     delta[Boolean](cutMatrix, newCut, bmp)
   }
 
-//  var prevMatrix = distance((x, y), dimension)
   var prevMatrix = distances(y * w + x)
+
+  def findPoint(uncheckedPoint: Array[Int], cutMatrix: Array[Boolean]): (Int, Int) = {
+    val mpoints = uncheckedPoint.map(point => toMatrix(point))
+    val maxXIndex = mpoints.maxBy(_._1)._1
+    val minXIndex = mpoints.minBy(_._1)._1
+    val maxYIndex = mpoints.maxBy(_._2)._2
+    val minYIndex = mpoints.minBy(_._2)._2
+    val mediX = minXIndex + Math.round(maxXIndex - minXIndex) / 2
+    val mediY = minYIndex + Math.round(maxYIndex - minYIndex) / 2
+    var counter = 0
+    var point = (-1,-1)
+
+    while (point._1 == -1) {
+      if (cutMatrix((mediX, mediY))) {
+        point = (mediX, mediY)
+      } else if (cutMatrix((mediX + counter, mediY))) {
+        point = (mediX + counter, mediY)
+      } else if (cutMatrix((mediX, mediY + counter))) {
+        point = (mediX, mediY + counter)
+      } else if (cutMatrix((mediX - counter, mediY))) {
+        point = (mediX - counter, mediY)
+      } else if (cutMatrix((mediX, mediY - counter))) {
+        point = (mediX, mediY - counter)
+      } else if (cutMatrix((mediX + counter, mediY - counter))) {
+        point = (mediX + counter, mediY - counter)
+      } else if (cutMatrix((mediX - counter, mediY + counter))) {
+        point = (mediX - counter, mediY + counter)
+      } else if (cutMatrix((mediX + counter, mediY + counter))) {
+        point = (mediX + counter, mediY + counter)
+      } else if (cutMatrix((mediX - counter, mediY - counter))) {
+        point = (mediX - counter, mediY - counter)
+      } else counter += 1
+    }
+    point
+  }
 
   def nextMove(x: Int, y: Int, bombdir: String): (Int, Int) = {
     if (bombdir == "UNKNOWN") {
-      val uncheckedPoint = cutMatrix.zipWithIndex.filter(_._1)
-      val semisize = uncheckedPoint.length / 2
-      val index = toMatrix(w, uncheckedPoint(semisize)._2)
+      val uncheckedPoint = cutMatrix.zipWithIndex.filter(_._1 == true).map(_._2)
+      val index = findPoint(uncheckedPoint, cutMatrix)
       cutMatrix(index) = false
       index
     } else {
-//      var distanceMatrix = distance((x, y), dimension)
       val distanceMatrix = distances(y * w + x)
       val processedMatrix = Player.delta[Double](prevMatrix, distanceMatrix, doubleMapFunction).toArray
       val cutPoints = cut(processedMatrix, cutMatrix, bombdir, booleanMapFunction).toArray
