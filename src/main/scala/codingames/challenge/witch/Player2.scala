@@ -1,4 +1,4 @@
-package codingames.challenge.witch
+//package codingames.challenge.witch
 
 import codingames.challenge.witch.Player.{Spell, me}
 
@@ -12,11 +12,11 @@ import scala.io.StdIn._
 object Player2 extends App {
 
   //------------------------------------------FILE ENTRY------------------------------------------------------------------
-                                                            val filename = "resources/witch/witch2.txt"
-                                                            val bufferedSource = Source.fromFile(filename)
-                                                            val data = bufferedSource.getLines
-                                                            def readInt = if (data.hasNext) data.next.toInt else -1
-                                                            def readLine = if (data.hasNext) data.next else "EOF"
+//                                                            val filename = "resources/witch/witch1.txt"
+//                                                            val bufferedSource = Source.fromFile(filename)
+//                                                            val data = bufferedSource.getLines
+//                                                            def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
+//                                                            def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
   //----------------------------------------------------------------------------------------------------------------------
 
   object SpellType extends Enumeration {
@@ -34,8 +34,9 @@ object Player2 extends App {
   val actionTypeMap = Map("BREW" -> SpellType.BREW, "CAST" -> SpellType.CAST, "OPPONENT_CAST" -> SpellType.OPPCAST,  "LEARN" -> SpellType.LEARN)
   var allSpells: SpellMap = Map.empty
 
-  case class EstimationData(level: Int, negativeSum: Int, initSum: Int, rootSpellId: Int, rootPrice: Int) {
-    override def toString: String = s"level=$level res=$negativeSum init=${initSum} root=${allSpells.get(rootSpellId).map(_.getCommand)} rootPrice=${rootPrice}"
+  case class EstimationData(level: Int, negativeSum: Int, initSum: Int, sequence: List[Int], rootPrice: Int) {
+    override def toString: String = s"level=$level res=$negativeSum init=${initSum} " +
+      s"root=${sequence.map(allSpells(_).getCommand).reverse.mkString("->")} rootPrice=${rootPrice}"
   }
   sealed abstract class Pers(val inv: Inventory, val score: Int)
   case class Me(override val inv: Inventory, override val score: Int) extends Pers(inv, score)
@@ -52,11 +53,12 @@ object Player2 extends App {
   case class Rest(override val id: Int, override val spellType: SpellType, override val delta: Inventory, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
     override def affect(spells: SpellMap, inv: Inventory): SpellMap = spells.map(castEntry => {
       val cast = castEntry._2
-      if (cast.spellType == CAST) id -> Cast(cast.id, cast.spellType, cast.delta, cast.price, cast.tomeIndex, cast.taxCount, castable = true, cast.repeatable)
+      if (cast.spellType == CAST) cast.id -> Cast(cast.id, cast.spellType, cast.delta, cast.price, cast.tomeIndex, cast.taxCount, castable = true, cast.repeatable)
       else castEntry
     })
     override def applyInv(inv: Inventory): Inventory = inv
-    override def toString: String = "REST"
+    override def getCommand: String = "REST"
+    override def toString: String = getCommand
   }
   case class Brew(override val id: Int, override val spellType: SpellType, override val delta: Inventory, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
     override def affect(spells: SpellMap, inv: Inventory): SpellMap = spells - id
@@ -119,19 +121,21 @@ object Player2 extends App {
     val brews = findBrews(allSpells, inv)
     val casts = findCasts(allSpells, inv)
     val learns = findLearn(allSpells, inv)
-    brews ++ casts ++ learns ++ Map(-1 -> Rest(-1, REST, Array(0,0,0,0), 0, 0, 0, castable = false, repeatable = false))
+    (brews ++ casts ++ learns) + (-1 -> allSpells(-1))
   }
 
-  case class Node2(level: Int, root: Int, /*from: Spell, */readySpells: Map[Int, Spell], spellMap: SpellMap, inv: Inventory) {
+  case class Node2(level: Int, from: List[Int], readySpells: Map[Int, Spell], spellMap: SpellMap, inv: Inventory, proceed: Boolean) {
     private lazy val brews = spellMap.values.groupBy(_.spellType)(BREW)
+    private def proceed(spell: Spell): Boolean = !(from.nonEmpty && spell.spellType == REST && allSpells(from.head).spellType == REST)
+
     private def updateEstimation = {
       brews.foreach(brew => {
         val csum = brew.newDelta(inv).sum
         estimation = estimation.get(brew.id) match {
           case Some(data) =>
-            if (data.negativeSum < csum) estimation + (brew.id -> EstimationData(level, csum, data.initSum, root, brew.price))
+            if (data.negativeSum < csum) estimation + (brew.id -> EstimationData(level, csum, data.initSum, from, brew.price))
             else estimation
-          case None => estimation + (brew.id -> EstimationData(level + 1, csum, brew.currentSum, root, brew.price))
+          case None => estimation + (brew.id -> EstimationData(level + 1, csum, brew.currentSum, from, brew.price))
         }
       })
       this
@@ -140,12 +144,10 @@ object Player2 extends App {
         val spell = spellEntry._2
         val newInv = spell.applyInv(inv)
         val newSpells = spell.affect(spellMap, newInv)
-        val rootCommandId = if (root == Int.MinValue) spell.id else root
-//        updateEstimation(rootCommandId, newInv)
-        Node2(level + 1, rootCommandId, findReadySpells(newSpells, newInv), newSpells, newInv).updateEstimation
+        Node2(level + 1, spell.id :: from, findReadySpells(newSpells, newInv), newSpells, newInv, proceed(spell)).updateEstimation
     }
-    def apply: List[Node2] = readySpells.map(apply).toList
-    override def toString: String = s"$root: [${inv.mkString(",")}]"
+    def apply: List[Node2] = readySpells.map(apply(_)).toList
+    override def toString: String = s"${from.map(allSpells(_).getCommand).reverse.mkString(" -> ")}   inv=[${inv.mkString(",")}]"
   }
 
   def createSpell(id: Int, spellType: SpellType, delta: Inventory, price: Int, tomeIndex: Int, taxCount: Int, castable: Boolean, repeatable: Boolean): Spell = {
@@ -190,6 +192,7 @@ object Player2 extends App {
       val repeatable = _repeatable.toInt != 0
 
       allSpells += (actionId -> createSpell(actionId, actionTypeMap(actionType), Array(delta0, delta1, delta2, delta3), price, tomeIndex, taxCount, castable, repeatable))
+      allSpells += (-1 -> Rest(-1, REST, Array(0,0,0,0), 0, -1, -1, false, false))
     }
     // inv0: tier-0 ingredients in inventory
     // score: amount of rupees
@@ -206,25 +209,29 @@ object Player2 extends App {
     if (step == 5) estimation.foreach(est => {
       Console.err.println(s"${est._1}->${est._2}")
     }) else {
-      val leaves = nodes.flatMap(node => node.apply)
+      val leaves = nodes.flatMap(node => node.apply).filter(_.proceed)
       Console.err.println(s"leaves: ${leaves.size}")
       calculate(leaves, step + 1)
+
     }
   }
-
+  def best = {
+    val estimationMap = estimation.values.groupBy(_.sequence.head)/*.view.mapValues(a => a)*/
+    val profitData = estimationMap.map(ab => (ab._1, ab._2.map(data => data.negativeSum - data.initSum).sum))
+    allSpells(profitData.maxBy(_._2)._1).getCommand
+  }
 
   def findAction = {
-    estimation = allSpells.withFilter(_._2.spellType == BREW).map(spellEntry => (spellEntry._1, EstimationData(0, Int.MinValue, spellEntry._2.currentSum, Int.MinValue, spellEntry._2.price)))
+    estimation = allSpells.withFilter(_._2.spellType == BREW).map(spellEntry => (spellEntry._1, EstimationData(0, Int.MinValue, spellEntry._2.currentSum, List.empty, spellEntry._2.price)))
     val commands = findReadySpells(allSpells, me.inv)
-    val root = Node2(0, Int.MinValue, commands, allSpells, me.inv)
+    val root = Node2(0, List.empty, commands, allSpells, me.inv, proceed = true)
     calculate(root :: Nil, 0)
-
+    best
   }
 
   // game loop
   while (true) {
     readData()
-    //    brewRoadmap
     val action = findAction
     // in the first league: BREW <id> | WAIT; later: BREW <id> | CAST <id> [<times>] | LEARN <id> | REST | WAIT
     println(s"$action")
