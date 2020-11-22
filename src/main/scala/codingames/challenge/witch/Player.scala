@@ -1,175 +1,156 @@
-//package codingames.challenge.witch
+package codingames.challenge.witch
 
-import scala.annotation.tailrec
+import Player.SpellType.SpellType
+
+import math._
+import scala.collection.mutable
 import scala.io.Source
+import scala.util._
 import scala.io.StdIn._
 
 object Player extends App {
 
   //------------------------------------------FILE ENTRY------------------------------------------------------------------
-//                                                            val filename = "resources/witch/witch1.txt"
-//                                                            val bufferedSource = Source.fromFile(filename)
-//                                                            val data = bufferedSource.getLines
-//                                                            def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
-//                                                            def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
+  val filename = "resources/witch/witch1.txt"
+  val bufferedSource = Source.fromFile(filename)
+  val data = bufferedSource.getLines
+  def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
+  def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
   //----------------------------------------------------------------------------------------------------------------------
 
   object SpellType extends Enumeration {
     type SpellType = Value
     val BREW, CAST, OPPCAST, LEARN, REST = Value
   }
+
+  type Delta = Array[Int]
+  type SpellFilter = Iterable[Spell] => Iterable[Spell]
+  type STM = Map[SpellType, Iterable[Spell]]
+
   import SpellType._
 
-  type SpellFilter = List[Spell] => List[Spell]
-  type Inventory = Array[Int]
-  type SpellMap = Map[Int, Spell]
-  type SpellTypeMap = Map[SpellType, List[Spell]]
-
   var next: Option[String] = None
-  val actionTypeMap = Map("BREW" -> SpellType.BREW, "CAST" -> SpellType.CAST, "OPPONENT_CAST" -> SpellType.OPPCAST,  "LEARN" -> SpellType.LEARN)
-  var allSpells: SpellMap = Map.empty
+  val actionTypeMap = Map("BREW" -> SpellType.BREW, "CAST" -> SpellType.CAST, "OPPONENT_CAST" -> SpellType.OPPCAST, "LEARN" -> SpellType.LEARN)
 
-  case class EstimationData(level: Int, negativeSum: Int, initSum: Int, sequence: List[Int], rootPrice: Int) {
-    override def toString: String = s"level=$level res=$negativeSum init=${initSum} " +
-      s"root=${sequence.map(allSpells(_).getCommand).reverse.mkString("->")} rootPrice=${rootPrice}"
-  }
-  sealed abstract class Pers(val inv: Inventory, val score: Int)
-  case class Me(override val inv: Inventory, override val score: Int) extends Pers(inv, score)
-  case class Opp(override val inv: Inventory, override val score: Int) extends Pers(inv, score)
-  sealed abstract class Spell(val id: Int, val spellType: SpellType, val delta: Inventory, val price: Int, val tomeIndex: Int, val taxCount: Int, val castable: Boolean, val repeatable: Boolean) {
-    def affect(spells: SpellMap, inv: Inventory): SpellMap = spells
-    def getCommand = s"${spellType.toString} $id"
-    def applyInv(inv: Inventory): Inventory = delta.zipWithIndex.map(d => d._1 + inv(d._2)) // applies spell to inv and returns inv
-    def newDelta(inv: Inventory): Inventory = delta                                         // applies inv to delta and returns delta
-    def currentSum: Int = delta.sum
-    def totalSum(inv: Inventory): Int = applyInv(inv).sum
-    override def toString: String = getCommand
-  }
-  case class Rest(override val id: Int, override val spellType: SpellType, override val delta: Inventory, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
-    override def affect(spells: SpellMap, inv: Inventory): SpellMap = spells.map(castEntry => {
-      val cast = castEntry._2
-      if (cast.spellType == CAST) cast.id -> Cast(cast.id, cast.spellType, cast.delta, cast.price, cast.tomeIndex, cast.taxCount, castable = true, cast.repeatable)
-      else castEntry
-    })
-    override def applyInv(inv: Inventory): Inventory = inv
-    override def getCommand: String = "REST"
-    override def toString: String = getCommand
-  }
-  case class Brew(override val id: Int, override val spellType: SpellType, override val delta: Inventory, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
-    override def affect(spells: SpellMap, inv: Inventory): SpellMap = spells - id
-    override def newDelta(inv: Inventory): Inventory = delta.zipWithIndex.map(d => {
-      val res = d._1 + inv(d._2)
-      if (res > 0) 0 else res
-    })
-    override def currentSum: Int = delta.filter(_ < 0).sum
-    override def totalSum(inv: Inventory): Int = applyInv(inv).filter(_ < 0).sum
-  }
-  case class Cast(override val id: Int, override val spellType: SpellType, override val delta: Inventory, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
-    override def affect(spells: SpellMap, inv: Inventory): SpellMap = {
-      val newSpells = spells - id
-      newSpells + (id -> Cast(id, spellType, delta, price, tomeIndex, taxCount, castable = false, repeatable))
-    }
-  }
-  case class Learn(override val id: Int, override val spellType: SpellType, override val delta: Inventory, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
-    override def applyInv(inv: Inventory): Inventory = inv
-    override def affect(spells: SpellMap, inv: Inventory): SpellMap = {
-      val newSpells = spells - id
-      newSpells + (id -> Cast(id, SpellType.CAST, delta, price, -1, -1, castable = true, repeatable))
-    }
-  }
-  case class OppCast(override val id: Int, override val spellType: SpellType, override val delta: Inventory, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {}
-  case class Node(root: Spell, spell: Spell, newInv: Inventory, parent: Node, branch: List[Node]) {
-    override def toString: String = s"${root.getCommand}, newInv=[${newInv.mkString(",")}], parent is${if (parent == null) "" else " NOT"} null, branchSize=${branch.size}"
+  sealed abstract class Pers(val inv: Delta, val score: Int) {}
+
+  case class Result(id: Int, brewId: Int, newBrew: Delta, newAppliedDeltaSum: Int, oldAppliedDeltaSum: Int, initDeltaSum: Int, profit: Int) {
+    override def toString: String = s"$id\tnewDelta=[${newBrew.mkString(",")}]\tnewSum=$newAppliedDeltaSum\toldSum=$oldAppliedDeltaSum\tprofit=$profit"
   }
 
-  var estimation: Map[Int, EstimationData] = Map.empty
-  var brewFound = false
+  case class Me(override val inv: Delta, override val score: Int) extends Pers(inv, score)
+
+  case class Opp(override val inv: Delta, override val score: Int) extends Pers(inv, score)
+
+  sealed abstract class Spell(val id: Int, val spellType: SpellType, val delta: Delta, val price: Int, val tomeIndex: Int, val taxCount: Int, val castable: Boolean, val repeatable: Boolean) {
+    def getCommand = "REST"
+
+    def getNewInv(inv: Delta): Delta = delta.zipWithIndex.map(d => d._1 + inv(d._2))
+
+    def getNewDelta(inv: Delta): Delta = delta.zipWithIndex.map(d => d._1 + inv(d._2))
+
+    def apply(brew: Brew, oldInv: Delta): Result
+
+    def +(spell: Spell) = delta.zip(spell.delta).map { case (x, y) => -x - y }
+
+    override def toString: String = s"$id newDelta=[${delta.mkString(",")}] price=$price tome=$tomeIndex tax=$taxCount cast=$castable rep=$repeatable"
+  }
+
+  case class Rest(override val id: Int, override val spellType: SpellType, override val delta: Delta, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(-1, REST, null, -1, -1, -1, false, false) {
+    def apply(brew: Brew, oldInv: Delta): Result = Result(id, -1, Array(-1, -1, -1, -1), -4, -4, -4, 0)
+  }
+
+  case class Brew(override val id: Int, override val spellType: SpellType, override val delta: Delta, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
+    lazy val deltaSum: Int = delta.sum
+
+    override def getCommand = s"BREW $id"
+
+    override def getNewDelta(inv: Delta): Delta = delta.zipWithIndex.withFilter(_._1 < 0).map(d => d._1 + inv(d._2))
+
+    override def apply(affectedBrew: Brew, oldInv: Delta): Result = {
+      val newInv = getNewInv(oldInv)
+      val oldDeltaSum = affectedBrew.getNewDelta(oldInv).sum
+      val newDeltaSum = affectedBrew.getNewDelta(newInv).sum
+      Result(id, affectedBrew.id, affectedBrew.delta, newDeltaSum, oldDeltaSum, affectedBrew.delta.sum, 0)
+    }
+  }
+
+  case class Cast(override val id: Int, override val spellType: SpellType, override val delta: Delta, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
+    override def getCommand: String = if (castable) s"CAST $id" else super.getCommand
+
+    override def getNewDelta(inv: Delta): Delta = delta.zipWithIndex.map(d => d._1 + inv(d._2))
+
+    override def apply(affectedBrew: Brew, oldInv: Delta): Result = {
+      val newInv = getNewInv(oldInv)
+      val oldDelta = affectedBrew.getNewDelta(oldInv)
+      val newDelta = affectedBrew.getNewDelta(newInv)
+      val oldDeltaSum = oldDelta.sum
+      val newDeltaSum = newDelta.sum
+      Result(id, affectedBrew.id, newDelta, newDeltaSum, oldDeltaSum, affectedBrew.deltaSum, oldDeltaSum - newDeltaSum)
+    }
+  }
+
+  case class OppCast(override val id: Int, override val spellType: SpellType, override val delta: Delta, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
+    override def getNewDelta(inv: Delta): Delta = delta.zipWithIndex.withFilter(_._1 < 0).map(d => d._1 + inv(d._2))
+
+    override def apply(affectedBrew: Brew, oldInv: Delta): Result = {
+      val newInv = getNewInv(delta)
+      val oldDelta = affectedBrew.getNewDelta(oldInv)
+      val newDelta = affectedBrew.getNewDelta(newInv)
+      val oldDeltaSum = oldDelta.sum
+      val newDeltaSum = newDelta.sum
+      Result(id, affectedBrew.id, newDelta, newDeltaSum, oldDeltaSum, affectedBrew.deltaSum, oldDeltaSum - newDeltaSum)
+    }
+  }
+
+  case class Learn(override val id: Int, override val spellType: SpellType, override val delta: Delta, override val price: Int, override val tomeIndex: Int, override val taxCount: Int, override val castable: Boolean, override val repeatable: Boolean) extends Spell(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable) {
+    override def getNewInv(inv: Delta): Delta = Array(inv(0) - tomeIndex, inv(1), inv(2), inv(3))
+
+    override def getCommand = s"LEARN $id"
+
+    override def getNewDelta(inv: Delta): Delta = delta.zipWithIndex.map(d => d._1 + inv(d._2))
+
+    override def apply(affectedBrew: Brew, oldInv: Delta): Result = {
+      val oldCastInv = getNewInv(oldInv)
+      val newCastInv = super.getNewInv(oldCastInv)
+      val oldDelta = affectedBrew.getNewDelta(oldCastInv)
+      val newDelta = affectedBrew.getNewDelta(newCastInv)
+      val oldDeltaSum = oldDelta.sum
+      val newDeltaSum = newDelta.sum
+      Result(id, affectedBrew.id, newDelta, newDeltaSum, oldDeltaSum, affectedBrew.deltaSum, oldDeltaSum - newDeltaSum)
+    }
+  }
+
+  case class BrewNode(brew: Brew, spellAmount: Delta, parent: BrewNode, branch: mutable.Map[Cast, BrewNode]) {
+    def apply(inv: Delta): BrewNode = BrewNode(brew, brew.getNewDelta(inv), this, mutable.Map.empty)
+
+    def sum: Int = spellAmount.filter(_ < 0).sum
+
+    override def toString: String = s"${brew.id}, [${spellAmount.mkString(",")}], $sum, parent is${if (parent == null) "" else " NOT"} null, branchSize=${branch.size}"
+  }
+
+  var exhaustedFound = false
+  var allSpells: Map[Int, Spell] = Map.empty
   var me: Me = _
   var opp: Opp = _
 
-  def findBrews(spellsTypeMap: SpellMap, inv: Inventory) = {
-    val readyBrews = spellsTypeMap.filter(brew => {
-      brew._2.spellType == SpellType.BREW &&
-      brew._2.delta.zipWithIndex.forall(d => {
-        inv(d._2) + d._1 >= 0
-      })
-    })
-    readyBrews
-  }
-
-  def findCasts(spellsMap: SpellMap, inv: Inventory) = {
-    val total = inv.sum
-    spellsMap.filter(cast => {
-      cast._2.spellType == SpellType.CAST &&
-        cast._2.castable &&
-        cast._2.delta.sum + total <= 10 &&
-        cast._2.delta.zipWithIndex.forall(d => {
-          inv(d._2) + d._1 >= 0
-        })
-    })
-  }
-
-  def findLearn(spellsMap: SpellMap, inv: Inventory) = {
-    spellsMap.filter(learn => learn._2.spellType == SpellType.LEARN && learn._2.tomeIndex <= inv(0))
-  }
-
-  def findReadySpells(allSpells: SpellMap, inv: Inventory) = {
-    val brews = findBrews(allSpells, inv)
-    if (brews.nonEmpty) {
-      brewFound = true
-      brews
-    } else {
-      val casts = findCasts(allSpells, inv)
-      val learns = findLearn(allSpells, inv)
-      (brews ++ casts ++ learns) + (-1 -> allSpells(-1))
-    }
-  }
-
-  case class Node2(level: Int, from: List[Int], readySpells: Map[Int, Spell], spellMap: SpellMap, inv: Inventory, proceed: Boolean) {
-    private lazy val brews = allSpells.withFilter(_._2.spellType == BREW).map(brew => brew._2)
-    private def proceed(spell: Spell): Boolean = !(from.nonEmpty && ((spell.spellType == REST && allSpells(from.head).spellType == REST) ||
-                                                                    (spell.spellType == BREW && allSpells(from.head).spellType == BREW)))
-
-    private def updateEstimation = {
-      brews.foreach(brew => {
-        val csum = brew.newDelta(inv).sum
-        estimation = estimation.get(brew.id) match {
-          case Some(data) =>
-            if (data.negativeSum < csum) estimation + (brew.id -> EstimationData(level, csum, data.initSum, from, brew.price))
-            else estimation
-          case None => estimation + (brew.id -> EstimationData(level + 1, csum, brew.currentSum, from, brew.price))
-        }
-      })
-      this
-    }
-    private def apply(spellEntry: (Int, Spell)): Node2 = {
-        val spell = spellEntry._2
-        val newInv = spell.applyInv(inv)
-        val newSpells = spell.affect(spellMap, newInv)
-//        if (spell.spellType == BREW && estimation(spell.id).sequence.nonEmpty && allSpells(estimation(spell.id).sequence.head).spellType != BREW)
-//          estimation += (spell.id -> EstimationData(level, 0, estimation(spell.id).initSum, spell.id :: estimation(spell.id).sequence, spell.price))
-        Node2(level + 1, spell.id :: from, findReadySpells(newSpells, newInv), newSpells, newInv, proceed(spell)).updateEstimation
-    }
-    def apply: List[Node2] = readySpells.map(apply(_)).toList
-    override def toString: String = s"${from.map(allSpells(_).getCommand).reverse.mkString(" -> ")}   inv=[${inv.mkString(",")}]"
-  }
-
-  def createSpell(id: Int, spellType: SpellType, delta: Inventory, price: Int, tomeIndex: Int, taxCount: Int, castable: Boolean, repeatable: Boolean): Spell = {
+  def createSpell(id: Int, spellType: SpellType, delta: Delta, price: Int, tomeIndex: Int, taxCount: Int, castable: Boolean, repeatable: Boolean): Spell = {
     spellType match {
       case SpellType.BREW => Brew(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable)
       case SpellType.CAST => Cast(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable)
       case SpellType.OPPCAST => OppCast(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable)
       case SpellType.LEARN => Learn(id, spellType, delta, price, tomeIndex, taxCount, castable, repeatable)
+      case SpellType.REST => Rest(-1, REST, null, -1, -1, -1, false, false)
       case _ => throw new IllegalArgumentException("Unknown Spell type")
     }
   }
 
   def readData(): Unit = {
     val actionCount = readLine.toInt // the number of spells and recipes in play
-    Console.err.println(s"$actionCount")
+    //    Console.err.println(s"$actionCount")
     allSpells = Map.empty
 
-    Console.err.println(s"ID\tType\td0\td1\td2\td3\tPrc\tTom\tTax\tCst\tRep")
+    // System.err.println(s"ID\tType\td0\td1\td2\td3\tPrice\tTome\tTax\tCast\tRep")
     for (i <- 0 until actionCount) {
       // actionId: the unique ID of this spell or recipe
       // actionType: in the first league: BREW; later: CAST, OPPONENT_CAST, LEARN, BREW
@@ -183,7 +164,7 @@ object Player extends App {
       // castable: in the first league: always 0; later: 1 if this is a castable player spell
       // repeatable: for the first two leagues: always 0; later: 1 if this is a repeatable player spell
       val Array(_actionId, actionType, _delta0, _delta1, _delta2, _delta3, _price, _tomeIndex, _taxCount, _castable, _repeatable) = readLine split " "
-      Console.err.println(s"${_actionId}\t$actionType\t${_delta0}\t${_delta1}\t${_delta2}\t${_delta3}\t${_price}\t${_tomeIndex}\t${_taxCount}\t${_castable}\t${_repeatable}")
+      //      Console.err.println(s"${_actionId}\t$actionType\t${_delta0}\t${_delta1}\t${_delta2}\t${_delta3}\t${_price}\t${_tomeIndex}\t${_taxCount}\t${_castable}\t${_repeatable}")
       val actionId = _actionId.toInt
       val delta0 = _delta0.toInt
       val delta1 = _delta1.toInt
@@ -196,50 +177,201 @@ object Player extends App {
       val repeatable = _repeatable.toInt != 0
 
       allSpells += (actionId -> createSpell(actionId, actionTypeMap(actionType), Array(delta0, delta1, delta2, delta3), price, tomeIndex, taxCount, castable, repeatable))
-      allSpells += (-1 -> Rest(-1, REST, Array(0,0,0,0), 0, -1, -1, false, false))
     }
+    allSpells = allSpells + (-1 -> Rest(-1, REST, null, -1, -1, -1, false, false))
     // inv0: tier-0 ingredients in inventory
     // score: amount of rupees
     val Array(inv0Me, inv1Me, inv2Me, inv3Me, scoreMe) = (readLine split " ").map(_.toInt)
     me = Me(Array(inv0Me, inv1Me, inv2Me, inv3Me), scoreMe)
-    Console.err.println(s"\t$inv0Me $inv1Me $inv2Me $inv3Me $scoreMe")
+    //    Console.err.println(s"\t$inv0Me $inv1Me $inv2Me $inv3Me $scoreMe")
     val Array(inv0Opp, inv1Opp, inv2Opp, inv3Opp, scoreOpp) = (readLine split " ").map(_.toInt)
     opp = Opp(Array(inv0Opp, inv1Opp, inv2Opp, inv3Opp), scoreOpp)
-    Console.err.println(s"\t$inv0Opp $inv1Opp $inv2Opp $inv3Opp $scoreOpp")
+    //    Console.err.println(s"\t$inv0Opp $inv1Opp $inv2Opp $inv3Opp $scoreOpp")
   }
 
-  @tailrec
-  def calculate(nodes: List[Node2], step: Int) {
-    if (step == 2) estimation.foreach(est => {
-    }) else {
-      val leaves = nodes.flatMap(node => node.apply).filter(_.proceed)
-      calculate(leaves, step + 1)
+  def canButExhaustedCast(casts: Iterable[Spell]) = {
+    val total = me.inv.sum
+    casts.filter(cast => {
+      !cast.castable &&
+        cast.delta.sum + total <= 10 &&
+        cast.delta.zipWithIndex.forall(d => {
+          me.inv(d._2) + d._1 >= 0
+        })
+    })
+  }
 
+  def canAndExhaustedCast(casts: Iterable[Spell]) = {
+    val total = me.inv.sum
+    casts.filter(cast => {
+      cast.delta.sum + total <= 10 &&
+        cast.delta.zipWithIndex.forall(d => {
+          me.inv(d._2) + d._1 >= 0
+        })
+    })
+  }
+
+  def canCast(cast: Spell, total: Int, inv: Delta): Boolean = {
+    cast.castable &&
+      cast.delta.sum + total <= 10 &&
+      cast.delta.zipWithIndex.forall(d => {
+        inv(d._2) + d._1 >= 0
+      })
+  }
+
+  def canCast(casts: Iterable[Spell], inv: Delta): Iterable[Spell] = {
+    val total = inv.sum
+    casts.filter(cast => canCast(cast, total, inv))
+  }
+
+  def canCast(casts: Iterable[Spell]): Iterable[Spell] = canCast(casts, me.inv)
+
+  def canLearn(learns: Iterable[Spell]): Iterable[Spell] = learns.filter(_.tomeIndex <= me.inv(0))
+
+  def compareBrewNodes(castData: (Cast, BrewNode)) = castData._2.parent.sum < castData._2.sum
+
+  def enrichBrewNodes(brewNodes: Iterable[BrewNode], casts: Iterable[Spell]) {
+    brewNodes.foreach(bn => {
+      casts.map(cast => {
+        val castCalcRes = cast.getNewDelta(me.inv)
+        val leaf = bn.apply(castCalcRes)
+        bn.branch.put(cast.asInstanceOf[Cast], leaf)
+      })
+    })
+  }
+
+  def canBrew(brew: Spell, inv: Delta): Boolean = brew.delta.zipWithIndex.forall(d => {
+    inv(d._2) + d._1 >= 0
+  })
+
+  def canBrew(brews: Iterable[Spell]): Iterable[Spell] = brews.filter(brew => canBrew(brew, me.inv)).toList
+
+  def findBrew(spellsTypeMap: Map[SpellType, Iterable[Spell]]): Option[Int] = {
+    val brews = spellsTypeMap(SpellType.BREW)
+    val readyBrews = canBrew(brews)
+    if (readyBrews.nonEmpty) {
+      val bestBrew = readyBrews.maxBy(_.price)
+      Some(bestBrew.id)
+    } else None
+  }
+
+  def findExhaustedCast(spellsTypeMap: Map[SpellType, Iterable[Spell]]): Option[(Int, Int)] = {
+    val casts = spellsTypeMap(SpellType.CAST)
+    val brews = spellsTypeMap(SpellType.BREW)
+    val readyCasts = canButExhaustedCast(casts)
+    val brewNodes = brews.map(brew => BrewNode(brew.asInstanceOf[Brew], brew.getNewDelta(me.inv), null, mutable.Map.empty))
+    enrichBrewNodes(brewNodes, readyCasts)
+
+    val res = brewNodes.flatMap(_.branch).filter(compareBrewNodes)
+    if (res.nonEmpty) {
+      val brewNodeData = res.maxBy(compareBrewNodes)
+      // Console.err.println(s"prevSum=${brewNodeData._2.parent.sum}\tcurrentSum=${brewNodeData._2.sum}\tbrew=${brewNodeData._2.brew.id}")
+      exhaustedFound = true
+      Some(brewNodeData._1.id, brewNodeData._2.parent.sum - brewNodeData._2.sum)
+    } else None
+  }
+
+  def findCast(spellsTypeMap: Map[SpellType, Iterable[Spell]], spellFilter: SpellFilter): Option[(Int, Int)] = {
+    val casts = spellsTypeMap(SpellType.CAST)
+    val brews = spellsTypeMap(SpellType.BREW)
+    val readyCasts = spellFilter(casts)
+    val brewNodes = brews.map(brew => BrewNode(brew.asInstanceOf[Brew], brew.getNewDelta(me.inv), null, mutable.Map.empty))
+    enrichBrewNodes(brewNodes, readyCasts)
+
+    val res = brewNodes.flatMap(_.branch).filter(compareBrewNodes)
+    if (res.nonEmpty) {
+      val brewNodeData = res.maxBy(compareBrewNodes)
+      // Console.err.println(s"prevSum=${brewNodeData._2.parent.sum}\tcurrentSum=${brewNodeData._2.sum}\tbrew=${brewNodeData._2.brew.id}")
+      Some(brewNodeData._1.id, brewNodeData._2.parent.sum - brewNodeData._2.sum)
+    } else None
+  }
+
+  def findLearn(spellsTypeMap: Map[SpellType, Iterable[Spell]]): Option[(Int, Int)] = {
+    //    val casts = spellsTypeMap(SpellType.CAST)
+    val brews = spellsTypeMap(SpellType.BREW)
+    val readyLearns = spellsTypeMap.getOrElse(SpellType.LEARN, Iterable.empty).filter(_.tomeIndex <= me.inv(0))
+
+    val r = readyLearns.map(learn => {
+      Cast(learn.id, SpellType.CAST, learn.delta, learn.price, -1, -1, castable = true, repeatable = learn.repeatable) /*, learn.newInv(me.inv))*/
+    })
+    /*.filter(data => canCast(data._1, data._2. sum, data._2))*/
+    val brewNodes = brews.map(brew => BrewNode(brew.asInstanceOf[Brew], brew.getNewDelta(me.inv), null, mutable.Map.empty))
+    enrichBrewNodes(brewNodes, r)
+    val res = brewNodes.flatMap(_.branch).filter(compareBrewNodes)
+    if (res.nonEmpty) {
+      val brewNodeData = res.maxBy(compareBrewNodes)
+      Some((brewNodeData._1.id, brewNodeData._2.parent.sum - brewNodeData._2.sum))
+    } else None
+    /*
+    if (readyLearns.nonEmpty) {
+      Some(readyLearns.maxBy(_.price).id)
+    } else None*/
+  }
+
+  def estimateInv(inv: Delta, koeff: Delta) = inv.zipWithIndex.map(ingr => ingr._1 * koeff(ingr._2)).sum
+  def estimateInvs(castInvs: Iterable[(Spell, Delta)], koeff: Delta) = castInvs.map(castInv => (castInv._1, estimateInv(castInv._2, koeff)))
+
+  def brewIsGoing(spellsTypeMap: STM): Option[Int] = {
+    val brews = spellsTypeMap(BREW).map(_.asInstanceOf[Brew]).toList.sortBy(-_.price)
+    val readyBrews = canBrew(brews)
+    if (readyBrews.nonEmpty) Some(readyBrews.maxBy(_.price).id)
+    else {
+      //      val casts = canAndExhaustedCast(spellsTypeMap(CAST))
+      val casts = canCast(spellsTypeMap(CAST))
+      //      val casts = spellsTypeMap(CAST)
+      val canCastBrews = casts.flatMap(cast => {
+        brews.withFilter(brew => {
+          val newInv = cast.getNewInv(me.inv)
+          canBrew(brew, newInv)
+        }).map(brew => (brew, cast))
+      })
+      if (canCastBrews.nonEmpty) Some(canCastBrews.maxBy(_._1.price)._2.id) else None
     }
   }
-  def best2: String = {
-    val profitCol = estimation.collect {
-      case data if data._2.negativeSum + data._2.initSum < 0 => (data._2.sequence.last, data._2.negativeSum)
+
+  def learnIsGoing(spellsTypeMap: STM): Option[Int] = {
+    spellsTypeMap.get(LEARN) match {
+      case Some(learns) =>
+        val koeff = spellsTypeMap(BREW).map(_.delta).reduce((d1, d2) => d1.zip(d2).map { case (n1, n2) => n1 + n2 }).map(-_)
+        val readyLearn = canLearn(learns)
+        val newInvs = readyLearn.map(learn => (learn, learn.getNewInv(me.inv)))
+        val oldInvEstimation = estimateInv(me.inv, koeff)
+        val invsEstimation = estimateInvs(newInvs, koeff)
+        val bestInv = invsEstimation.maxBy(_._2)
+        val bestInvEstimation = bestInv._2
+        if (bestInvEstimation >= oldInvEstimation) Some(bestInv._1.id) else None
+      case None => None
     }
-    if (profitCol.isEmpty) {
-      Console.err.println(s"PROFITCOL IS EMPTY!!!")
-      "REST"
-    } else allSpells(profitCol.maxBy(_._2)._1).getCommand
   }
-  def best = {
-    val estimationMap = estimation.values.groupBy(_.sequence.last)
-    val profitData = estimationMap.map(ab => (ab._1, ab._2.map(data => data.negativeSum - data.initSum).sum))
-    allSpells(profitData.maxBy(_._2)._1).getCommand
+
+  def castIsGoing(spellsTypeMap: STM): Option[Int] = {
+    val casts = spellsTypeMap(CAST)
+    val readyCasts = canCast(casts)
+    val koeff = spellsTypeMap(BREW).map(brew => brew.delta.map(_ * brew.price)).reduce((d1, d2) => d1.zip(d2).map { case (n1, n2) => n1 + n2 }).map(-_)
+    //    var koeff = Array(0,0,0,0)
+    //    val rrr = for (brew <- spellsTypeMap(BREW)) yield {
+    //       koeff.zip(brew.delta).map { case (n1, n2) => n1 + n2 }
+    //    }
+    //    val koeff = spellsTypeMap(BREW).map(_.delta) {
+    //      case d => ((d1, d2) => d1.zip(d2).map { case (n1, n2) => n1 + n2 }).map(-_)
+    //    }
+    val exhaustedCasts = canButExhaustedCast(casts)
+    val castList = if (exhaustedCasts.size > readyCasts.size) readyCasts ++ exhaustedCasts else readyCasts
+    //    val castList = if (readyCasts.isEmpty) exhaustedCasts else readyCasts
+    val newInvs = castList.map(cast => (cast, cast.getNewInv(me.inv)))
+    val oldInvEstimation = estimateInv(me.inv, koeff)
+    val invsEstimation = estimateInvs(newInvs, koeff)
+    val bestInv = invsEstimation.maxBy(_._2)
+    val bestInvEstimation = bestInv._2
+    if (bestInvEstimation >= oldInvEstimation) Some(bestInv._1.id) else None
+  }
+
+  def calculateAction: Int = {
+    val spellsTypeMap = allSpells.values.groupBy(_.spellType)
+    brewIsGoing(spellsTypeMap).getOrElse(castIsGoing(spellsTypeMap).getOrElse(learnIsGoing(spellsTypeMap).getOrElse(-1)))
   }
 
   def findAction: String = {
-    estimation = allSpells.withFilter(_._2.spellType == BREW).map(spellEntry => (spellEntry._1, EstimationData(0, Int.MinValue, spellEntry._2.currentSum, List.empty, spellEntry._2.price)))
-    val commands = findReadySpells(allSpells, me.inv)
-    if (brewFound) commands.maxBy(_._2.price)._2.getCommand else {
-      val root = Node2(0, List.empty, commands, allSpells, me.inv, proceed = true)
-      calculate(root :: Nil, 0)
-      best2
-    }
+    allSpells(calculateAction).getCommand
   }
 
   // game loop
