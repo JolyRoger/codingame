@@ -5,7 +5,11 @@ import org.scalatest.FlatSpec
 
 class PlatinumTest extends FlatSpec {
 
-  "A divider" should "split a dividen for equal parts" in {
+  "Player" should "run the application" in {
+    Player.main(Array.empty[String])
+  }
+
+  "A divider" should "split a divide for equal parts" in {
     val res1 = Player.smartDivide(10, 3)
     val res2 = Player.smartDivide(11, 3)
     val res3 = Player.smartDivide(15, 5)

@@ -1,4 +1,4 @@
-//package codingames.challenge.platinum
+package codingames.challenge.platinum
 
 import math._
 import scala.io.Source
@@ -15,11 +15,11 @@ class Zone(val zid: Int, var mine: Boolean, var mypods: Int, var oppods: Int, va
  **/
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-//      val filename = "resources/platinum/pl.txt"
-//      val bufferedSource = Source.fromFile(filename)
-//      val data = bufferedSource.getLines
-//      def readInt = if (data.hasNext) data.next.toInt else -1
-//      def readLine = if (data.hasNext) data.next else "EOF"
+      val filename = "resources/platinum/pl.txt"
+      val bufferedSource = Source.fromFile(filename)
+      val data = bufferedSource.getLines
+      def readInt = if (data.hasNext) data.next.toInt else -1
+      def readLine = if (data.hasNext) data.next else "EOF"
 //----------------------------------------------------------------------------------------------------------------------
 
   def fillEdge(str: Array[String]) {

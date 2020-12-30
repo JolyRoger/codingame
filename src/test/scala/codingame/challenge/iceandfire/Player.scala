@@ -5,6 +5,7 @@ import java.io.File
 import math._
 import scala.io.Source
 import scala.util._
+import scala.io.StdIn._
 
 /**
   * Auto-generated code below aims at helping you parse
@@ -19,12 +20,12 @@ object Player extends App {
   val output = true
   val outputLikeInput = false
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "iceandfire/iceandfire0.txt"
-  val bufferedSource = Source.fromFile(filename)
-  val data = bufferedSource.getLines
-
-  def readInt = if (data.hasNext) data.next.toInt else -1
-  def readLine = if (data.hasNext) data.next else "\u0000"
+//  val filename = "iceandfire/iceandfire0.txt"
+//  val bufferedSource = Source.fromFile(filename)
+//  val data = bufferedSource.getLines
+//
+//  def readInt = if (data.hasNext) data.next.toInt else -1
+//  def readLine = if (data.hasNext) data.next else "\0"
 
 
   //------------------------------------------CLASSES---------------------------------------------------------------------
