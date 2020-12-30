@@ -5,13 +5,13 @@ import scala.io.StdIn._
 
 object Player extends App {
 
-//------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/thelastcrusade/BrokenWell.txt"
-  val bufferedSource = Source.fromFile(filename)
-  val data = bufferedSource.getLines
-  def readInt = if (data.hasNext) data.next.toInt else -1
-  def readLine = if (data.hasNext) data.next else "EOF"
-//------------------------------------------FILE ENTRY------------------------------------------------------------------
+  //------------------------------------------FILE ENTRY------------------------------------------------------------------
+//  val filename = "resources/thelastcrusade/BrokenWell.txt"
+//  val bufferedSource = Source.fromFile(filename)
+//  val data = bufferedSource.getLines
+//  def readInt = if (data.hasNext) data.next.toInt else -1
+//  def readLine = if (data.hasNext) data.next else "EOF"
+  //------------------------------------------FILE ENTRY------------------------------------------------------------------
   var i = 0
 
   val enter = Array(List("2", "1", "RIGHT"), List("WAIT"), List("WAIT"))
