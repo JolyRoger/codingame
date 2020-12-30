@@ -1,9 +1,9 @@
 package codingame.hard.bridge.v2
 
 import codingames.hard.bridge.v2.Player
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
-class PlayerTests extends FlatSpec {
+class PlayerTests extends AnyFlatSpec {
 
 
   /*val*/ def linesOrig = Array("................000000000........00000........000.............00.",
