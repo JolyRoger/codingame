@@ -1,4 +1,4 @@
-//package codingames.hard.thelastcrusade
+package codingames.hard.thelastcrusade
 
 import scala.collection.mutable.ListBuffer
 import scala.io.StdIn._
