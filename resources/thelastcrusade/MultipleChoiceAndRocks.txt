@@ -1,0 +1,120 @@
+14 8
+0	0	3	0	0	0	-3	0	0	0	-11	-2	-13	0
+0	0	-7	2	4	3	5	7	3	2	11	0	-3	0
+-12	-2	4	2	10	0	0	2	11	3	5	2	-9	0
+-3	0	0	0	3	0	0	3	2	0	0	0	3	0
+-3	0	0	13	2	3	2	12	9	2	3	3	10	0
+-3	2	3	3	4	3	3	2	2	0	0	0	0	0
+-11	-2	-2	-2	-6	-2	-8	3	5	2	2	11	0	0
+0	0	0	0	0	0	3	0	0	0	0	2	0	0
+6
+x=6 y=0 TOP
+rocks=1
+2 0 TOP
+i=0
+Standard Output Stream:
+WAIT
+Game information:
+You waited
+Indy moves from cell (6,0) to cell (6,1) entering from the TOP.
+1
+9
+Standard Error Stream:
+x=6 y=1 TOP
+rocks=1
+2 1 TOP
+i=1
+Standard Output Stream:
+7 1 LEFT
+Game information:
+You rotated cell (7,1) to the LEFT.
+Indy moves from cell (6,1) to cell (7,1) entering from the LEFT.
+2
+9
+Standard Error Stream:
+x=7 y=1 LEFT
+rocks=1
+2 2 TOP
+i=2
+Standard Output Stream:
+8 1 LEFT
+Game information:
+You rotated cell (8,1) to the LEFT.
+Indy moves from cell (7,1) to cell (8,1) entering from the LEFT.
+3
+9
+Standard Error Stream:
+x=8 y=1 LEFT
+rocks=1
+1 2 RIGHT
+i=3
+Standard Output Stream:
+10 1 RIGHT
+Game information:
+You rotated cell (10,1) to the RIGHT.
+Indy moves from cell (8,1) to cell (9,1) entering from the LEFT.
+4
+9
+Standard Error Stream:
+x=9 y=1 LEFT
+rocks=2
+10 0 TOP
+0 2 RIGHT
+i=4
+Standard Output Stream:
+10 1 RIGHT
+Game information:
+You rotated cell (10,1) to the RIGHT.
+Indy moves from cell (9,1) to cell (10,1) entering from the LEFT.
+5
+9
+Standard Error Stream:
+x=10 y=1 LEFT
+rocks=2
+11 0 LEFT
+0 3 TOP
+i=5
+Standard Output Stream:
+WAIT
+Game information:
+You waited
+Indy moves from cell (10,1) to cell (10,2) entering from the TOP.
+6
+9
+Standard Error Stream:
+x=10 y=2 TOP
+rocks=2
+12 0 LEFT
+0 4 TOP
+i=6
+Standard Output Stream:
+WAIT
+Game information:
+You waited
+Indy moves from cell (10,2) to cell (11,2) entering from the LEFT.
+7
+9
+Standard Error Stream:
+x=11 y=2 LEFT
+rocks=2
+12 1 TOP
+0 5 TOP
+i=7
+Standard Output Stream:
+WAIT
+Game information:
+You waited
+Indy moves from cell (11,2) to cell (12,2) entering from the LEFT.
+8
+9
+Standard Error Stream:
+x=12 y=2 LEFT
+rocks=2
+12 2 TOP
+0 6 TOP
+i=8
+Standard Output Stream:
+WAIT
+Game information:
+Failure: Indy was crushed by a rock and died.
+You waited
