@@ -1,4 +1,4 @@
- package codingames.veryhard.thelastcrusade
+package codingames.veryhard.thelastcrusade
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -7,11 +7,11 @@ import scala.io.StdIn._
 
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-     val filename = "resources/thelastcrusade/AvoidingRocks.txt"
-     val bufferedSource = Source.fromFile(filename)
-     val fileData = bufferedSource.getLines
-     def readInt = if (fileData.hasNext) fileData.next.toInt else -1
-     def readLine = if (fileData.hasNext) fileData.next else "EOF"
+   val filename = "resources/thelastcrusade/RockInterception.txt"
+   val bufferedSource = Source.fromFile(filename)
+   val fileData = bufferedSource.getLines
+   def readInt = if (fileData.hasNext) fileData.next.toInt else -1
+   def readLine = if (fileData.hasNext) fileData.next else "EOF"
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
 
   object Directive extends Enumeration {
@@ -373,6 +373,22 @@ object Player extends App {
       val nextSquareType = newType(squareType)(affectedPoint.direct)
       val realNext = connection(nextSquareType)
         .get(affectedPointFrom)
+        .map(_ (affectedPoint.getPoint).getPoint)
+
+      val noCorrect = realNext.contains(expectedNext)
+      if (noCorrect) cmd
+      else tryToCorrect(expectedNext, squareType, affectedPoint, affectedPointFrom)
+    }).getOrElse(cmd)
+  }
+
+  def correct_(affectedPoint: NodeData, cmd: String): String = {
+    currentIndiPath.pathMap.get((affectedPoint.x, affectedPoint.y)).map(affectedPointIndex => {
+      val expectedNext = currentIndiPath.path(affectedPointIndex + 1)
+      val affectedPointFrom = currentIndiPath.nodeData(affectedPointIndex).direct
+      val squareType = mazeData(affectedPoint.y)(affectedPoint.x)
+      val nextSquareType = newType(squareType)(affectedPoint.direct)
+      val realNext = connection(nextSquareType)
+        .get(affectedPointFrom)
         .map(_(affectedPoint.getPoint).getPoint)
         .getOrElse(expectedNext)
       if (expectedNext != realNext) tryToCorrect(expectedNext, squareType, affectedPoint, affectedPointFrom)
@@ -464,14 +480,23 @@ object Player extends App {
                 }
               }
           }
-        case None => findMostDangerRockPath().map(d => s"${d._1} ${d._2} LEFT").getOrElse(currentIndiPath.commands(i))
+        case None => findMostDangerRockPath().map(d => {
+          val p = (d._1, d._2)
+          if (disposed.contains(p)) currentIndiPath.commands(i)
+          else {
+            disposed = disposed + p
+            s"${d._1} ${d._2} RIGHT"
+          }
+        }).getOrElse(currentIndiPath.commands(i))
       }
     } else currentIndiPath.commands(i)
 
 
-    val correctedCmd = commandToNodeData(cmd).map(correct(_, cmd)).getOrElse(cmd)
-
-    commandToNodeData(correctedCmd).foreach(n => mazeData(n.y)(n.x) = newType(mazeData(n.y)(n.x))(n.direct))
-    println(correctedCmd)
+//    Console.out.println(s"currentSquare=${currentIndiPath.path(i)} nextSquare=${currentIndiPath.path(i + 1)} cmd=$cmd")
+    val cmdNode = commandToNodeData(cmd)
+    val nextCorrectedCmd = cmdNode.map(node => if (node.getPoint == currentIndiPath.path(i + 1)) correct(node, cmd) else cmd).fold(l => l, r => r)
+//    val correctedCmd = onlyNext.map(correct(_, cmd)).getOrElse(cmd)
+    commandToNodeData(nextCorrectedCmd).foreach(n => mazeData(n.y)(n.x) = newType(mazeData(n.y)(n.x))(n.direct))
+    println(nextCorrectedCmd)
   }
 }
