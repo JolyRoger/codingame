@@ -1,5 +1,6 @@
 package codingames.veryhard.thelastcrusade
 
+import scala.collection.immutable.ListSet
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
@@ -7,6 +8,7 @@ import scala.io.StdIn._
 
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
+//   val filename = "resources/thelastcrusade/OnlyOneWay.txt"
    val filename = "resources/thelastcrusade/RockInterception.txt"
    val bufferedSource = Source.fromFile(filename)
    val fileData = bufferedSource.getLines
@@ -22,7 +24,7 @@ object Player extends App {
   import Directive._
 
   type Point = (Int, Int)
-//  type NodeData = (Int, Int, Directive)
+  //  type NodeData = (Int, Int, Directive)
   type RockPointData = (Int, Int, Boolean)
   type NextXY = Point => NodeData
   type Maze = IndexedSeq[Array[Int]]
@@ -30,6 +32,7 @@ object Player extends App {
   var i = 0
   var firstStep = true
   var newRockCame = false
+  var needToRecalculateWait = false
 
   case class NodeData(x: Int, y: Int, direct: Directive) {
     def getPoint = (x, y)
@@ -41,20 +44,26 @@ object Player extends App {
   }
 
   class Rock(var x: Int, var y: Int, var from: Directive, var path: RockPath, var disposed: Boolean, var step: Int, var disposedPoint: Point) {
-
+    lazy val pathArr = path.path.map(node => (node._1, node._2))
     def isDanger(currentStep: Int, indiPath: IndiPath) = {
       path.getClashByIndex(indiPath.id) match {
-        case Some(clash) =>
-          val stepNumber = currentStep + clash.clashStep - step
-          stepNumber < indiPath.path.length && stepNumber >= 0 && indiPath.path(stepNumber) == clash.clashPoint
+        case Some(clashList) =>
+          clashList.exists(clash => {
+            val stepNumber = currentStep + clash.clashStep - step
+            stepNumber < indiPath.path.length && stepNumber >= 0 && (indiPath.path(stepNumber) == clash.clashPoint ||
+              (stepNumber + 1 < indiPath.path.length && stepNumber + 1 < pathArr.length &&
+               indiPath.path(stepNumber + 1) == clash.clashPoint && pathArr(stepNumber + 1) == indiPath.path(stepNumber)))
+          })
         case None => false
       }
     }
 
     def canAvoidClash(ip: IndiPath): Either[Boolean, Point] = {
       path.getClashByIndex(ip.id) match {
-        case Some(clash) =>
-          path.path.slice(step, clash.clashStep).tail.find(_._3).map(p => Right((p._1, p._2))).orElse(Some(Left(false))).get
+        case Some(clashList) =>
+          val actualClash = clashList.filterNot(clash => visitedSquares.contains(clash.clashPoint))
+          if (actualClash.isEmpty) Left(true)
+          else path.path.slice(step, actualClash.head.clashSlice).tail.find(_._3).map(p => Right((p._1, p._2))).orElse(Some(Left(false))).get
         case None => Left(true)
       }
     }
@@ -62,25 +71,39 @@ object Player extends App {
     def canClashWithRock(clashCandidate: Rock): Boolean = {
       val clashCandidatePath = clashCandidate.path.path
       val actualClashCandidatePath = clashCandidatePath.slice(clashCandidate.step, clashCandidatePath.length)
-      val myPath = path.path.slice(step, path.path.length)
-      myPath.zipWithIndex.exists(aip => (aip._1._1, aip._1._2) == (actualClashCandidatePath(aip._2)._1, actualClashCandidatePath(aip._2)._1))
+      if (path == null) false else {
+        val myPath = path.path.slice(step, path.path.length)
+        val (shorterPath, longerPath) = if (myPath.length < actualClashCandidatePath.length) (myPath, actualClashCandidatePath) else (actualClashCandidatePath, myPath)
+        shorterPath.zipWithIndex.exists(aip => (aip._1._1, aip._1._2) == (longerPath(aip._2)._1, longerPath(aip._2)._1)) || {
+          // TODO: set disposed point to turn
+          false
+        }
+      }
     }
 
-    def setDisposedBy(p: Point) = /*Rock(x, y, from, path, true, step, p)*/{
+    def setDisposedBy(p: Point){
       disposed = true
+      path.disposed = true
       disposedPoint = p
     }
-    def stopList = path.stopList                                                             // TODO: calculate stop list depending on current rock position
+    def stopList = path.stopList
     def stopListSize = path.stopListSize
     def tail = path.path.tail
     def isEmpty = path.path.isEmpty
     def zipWithIndex = path.path.zipWithIndex
   }
 
-  class RockPath(val path: List[RockPointData], val clashData: Set[ClashData], var disposed: Boolean) {
-    private lazy val clashDataMap = clashData.map(cd => (cd.indiPathIndex, cd)).toMap
+  class RockPath(val path: List[RockPointData], val clashData: List[ClashData], var disposed: Boolean) {
+    def stopListForIndi(currentIndiPath: IndiPath): List[RockPointData] = {
+      val clashIndiPoint = clashDataMap.get(currentIndiPath.id).map(_.map(_.clashPoint))
+      //      val cnd = clashDataMap.get(currentIndiPath.id).map(p => (p.clashPoint._1, p.clashPoint._2, mazeData(p.clashPoint._2)(p.clashPoint._1) > 0))
+      path.takeWhile(p => clashIndiPoint.exists(pointSet => !pointSet.contains((p._1, p._2)))).filter(_._3)
+    }
+
+    //    private lazy val clashDataMap = clashData.map(cd => (cd.indiPathIndex, cd)).toMap
+    private lazy val clashDataMap = clashData.groupBy(_.indiPathIndex)
     private lazy val clashDataIndices = clashDataMap.keySet
-    lazy val stopList = path.filter(rpd => rpd._3 && !exists(rpd))                                                      // TODO: maybe need to recalculate more precisely
+    lazy val stopList = path.filter(rpd => rpd._3 && !exists(rpd))
     lazy val stopListSize = stopList.length
 
     private def exists(rpd: RockPointData) = clashData.exists(cd => cd.clashPoint == (rpd._1, rpd._2))
@@ -89,9 +112,8 @@ object Player extends App {
     def clashedWith(indiPathIndex: Int) = clashDataIndices.contains(indiPathIndex)
   }
 
-  case class ClashData(indiPathIndex: Int, clashStep: Int, clashPoint: Point) {
-    override def equals(obj: Any): Boolean = obj.isInstanceOf[ClashData] && obj.asInstanceOf[ClashData].indiPathIndex == indiPathIndex
-    override def hashCode(): Int = indiPathIndex
+  case class ClashData(indiPathIndex: Int, clashStep: Int, direct: Boolean, clashPoint: Point) {
+    lazy val clashSlice = if (direct) clashStep else clashStep + 1
   }
 
   case class IndiPath(id: Int, commands: Array[String], nodeData: Array[NodeData], dangerPath: ListBuffer[RockPath]) {
@@ -114,7 +136,10 @@ object Player extends App {
   // h: number of rows.
   val Array(w, h) = (readLine split " ").map(_.toInt)
   Console.err.println(s"$w $h")
-  val mazeData = for (_ <- 0 until h) yield readLine.split(" ").map(_.toInt)
+  val mazeData = for (_ <- 0 until h) yield readLine.split(" ").map(d => {
+    val res = d.toInt
+    if (res == 1) -1 else res
+  })
   Console.err.println(s"${mazeData.map(_.mkString("\t")).mkString("\n")}")
   val exit = readLine.toInt // the coordinate along the X axis of the exit.
   Console.err.println(s"$exit")
@@ -212,10 +237,11 @@ object Player extends App {
     val firstColIndices = firstCol.zipWithIndex.withFilter(_._1 != 0).map(a => (0, a._2)).toArray
     val lastColIndices = lastCol.zipWithIndex.withFilter(_._1 != 0).map(a => (firstRow.length - 1, a._2)).toArray
 
-    (firstRowIndices.withFilter(indiFilter(_, xi, yi)).map(firstRowIndex => calculateRockPath(firstRowIndex._1, firstRowIndex._2, TOP)) ++
-     firstColIndices.withFilter(indiFilter(_, xi, yi)).map(firstRowIndex => calculateRockPath(firstRowIndex._1, firstRowIndex._2, LEFT)) ++
-     lastColIndices.withFilter(indiFilter(_, xi, yi)).map(firstRowIndex => calculateRockPath(firstRowIndex._1, firstRowIndex._2, RIGHT))).filter(_.clashData.nonEmpty)
-        .map(rp => ((rp.path(0)._1, rp.path(0)._2), rp)).toMap
+    val firstRowPaths = firstRowIndices.withFilter(indiFilter(_, xi, yi)).map(firstRowIndex => calculateRockPath(firstRowIndex._1, firstRowIndex._2, TOP))
+    val firstColPaths = firstColIndices.withFilter(indiFilter(_, xi, yi)).map(firstRowIndex => calculateRockPath(firstRowIndex._1, firstRowIndex._2, LEFT))
+    val lastColPaths = lastColIndices.withFilter(indiFilter(_, xi, yi)).map(firstRowIndex => calculateRockPath(firstRowIndex._1, firstRowIndex._2, RIGHT))
+    (firstRowPaths ++ firstColPaths ++ lastColPaths).filter(_.path.length > 1)
+      .map(rp => ((rp.path(0)._1, rp.path(0)._2), rp)).toMap
   }
 
   def calculateRockPath(xr: Int, yr: Int, posr: Directive) = {
@@ -225,8 +251,8 @@ object Player extends App {
     var loop = true
     var step = 0
     val indiPathId = mutable.Set.empty[Int]
-    val rockPath = ListBuffer((xr, yr, false))
-    val clashData = mutable.Set.empty[ClashData]
+    var rockPath = ListSet((xr, yr, false))
+    val clashData = ListBuffer.empty[ClashData]
 
     while (loop) {
       val rockType = mazeData(y)(x)
@@ -234,19 +260,30 @@ object Player extends App {
       if (inside(newXy.x, newXy.y)) {
         allowedIndiPath.indices.foreach { indiPathIndex =>
           if (allowedIndiPath(indiPathIndex).pathSet((x, y))) {
-            clashData.addOne(ClashData(indiPathIndex, step, (x, y)))
+            clashData.addOne(ClashData(indiPathIndex, step, {
+              val currentIndiPath = allowedIndiPath(indiPathIndex)
+              val indiIndex = allowedIndiPath(indiPathIndex).pathMap((x, y))
+              !(currentIndiPath.path(indiIndex) == ((x, y)) && currentIndiPath.path(indiIndex - 1) == newXy.getPoint)
+            },
+
+              (x, y)))
             indiPathId.addOne(indiPathIndex)
           }
         }
 
-        if (x != xr || y != yr) rockPath.addOne((x, y, rockType > 0))
+        if (x != xr || y != yr) {
+          rockPath += ((x, y, rockType > 0))
+        }
         x = newXy.x
         y = newXy.y
         from = newXy.direct
         step += 1
-      } else loop = false
+      } else {
+        rockPath += ((x, y, false))
+        loop = false
+      }
     }
-    new RockPath(rockPath.toList, clashData.toSet, false)
+    new RockPath(rockPath.toList, clashData.toList, false)
   }
 
 
@@ -335,14 +372,11 @@ object Player extends App {
 
   def findAnotherPath(currentIndiPath: IndiPath, rock: Rock, step: Int) = {
     val safePaths = allowedIndiPath.filterNot(indiPath => indiPath.id == currentIndiPath.id || rock.isDanger(step, indiPath))
-    if (safePaths.isEmpty) {
-      Console.err.println(s"IT SHOULD NOT HAPPEN!")
-      None
-    } else Some(safePaths.head)
+    safePaths.headOption
   }
 
-  def findMostDangerRockPath() = {
-    val rockPathsCanBeSafe = allRockPath.filterNot(path => path.stopListSize == 0 || path.disposed)
+  def findMostDangerRockPath(currentIndiPath: IndiPath) = {
+    val rockPathsCanBeSafe = allRockPath.filterNot(path => path.stopListForIndi(currentIndiPath).isEmpty/* path.stopListSize == 0*/ || path.disposed)
     if (rockPathsCanBeSafe.nonEmpty) {
       val minRockPath = rockPathsCanBeSafe.minBy(path => path.stopListSize)
       minRockPath.disposed = true
@@ -352,7 +386,7 @@ object Player extends App {
 
   def tryToClashRocks(rocks: IndexedSeq[Rock], dangerRock: Rock): Option[Rock] = {
     val candidates = rocks.filterNot(_ == dangerRock)
-    candidates.find(rock => rock.canClashWithRock(dangerRock))
+    candidates.find(rock => dangerRock.canClashWithRock(rock))
   }
 
   def tryToCorrect(expectedNext: Point, squareType: Int, affectedPoint: NodeData, from: Directive) = {
@@ -377,22 +411,11 @@ object Player extends App {
 
       val noCorrect = realNext.contains(expectedNext)
       if (noCorrect) cmd
-      else tryToCorrect(expectedNext, squareType, affectedPoint, affectedPointFrom)
-    }).getOrElse(cmd)
-  }
-
-  def correct_(affectedPoint: NodeData, cmd: String): String = {
-    currentIndiPath.pathMap.get((affectedPoint.x, affectedPoint.y)).map(affectedPointIndex => {
-      val expectedNext = currentIndiPath.path(affectedPointIndex + 1)
-      val affectedPointFrom = currentIndiPath.nodeData(affectedPointIndex).direct
-      val squareType = mazeData(affectedPoint.y)(affectedPoint.x)
-      val nextSquareType = newType(squareType)(affectedPoint.direct)
-      val realNext = connection(nextSquareType)
-        .get(affectedPointFrom)
-        .map(_(affectedPoint.getPoint).getPoint)
-        .getOrElse(expectedNext)
-      if (expectedNext != realNext) tryToCorrect(expectedNext, squareType, affectedPoint, affectedPointFrom)
-      else cmd
+      else {
+        val corrected = tryToCorrect(expectedNext, squareType, affectedPoint, affectedPointFrom)
+        needToRecalculateWait = corrected == WAIT_CMD && cmd != WAIT_CMD
+        corrected
+      }
     }).getOrElse(cmd)
   }
 
@@ -404,6 +427,47 @@ object Player extends App {
         Integer.parseInt(currentCommandArr(0)),
         Integer.parseInt(currentCommandArr(1)),
         currentDirective ))
+  }
+
+  def recalculateIfWait(allRocks: IndexedSeq[Rock], aliveRocks: IndexedSeq[Rock], i: Int, currentCommand: String) = {
+    if (currentCommand == WAIT_CMD) {
+      val dangerRocks = aliveRocks.filter(_.isDanger(i, currentIndiPath))
+      dangerRocks.foreach(r =>
+        Console.err.println(s"DANGER:[${r.x},${r.y}]"))
+
+      val dangerRock = aliveRocks.find(r => r.isDanger(i, currentIndiPath))
+      dangerRock match {
+        case Some(rock) =>
+          rock.canAvoidClash(currentIndiPath) match {
+            case Right(p) =>
+              rock.setDisposedBy(p)
+              s"${p._1} ${p._2} RIGHT"
+            case Left(nothingToDo) => if (nothingToDo) currentCommand else {
+              allowedIndiPath = allowedIndiPath.filterNot(_.id == currentIndiPath.id)
+              findAnotherPath(currentIndiPath, rock, i) match {
+                case Some(path) =>
+                  currentIndiPath = path
+                  currentIndiPath.commands(i)
+                case None => tryToClashRocks(allRocks, rock).map(redisposedRock => if (redisposedRock.disposedPoint == null) currentCommand else {
+                  val out = s"${redisposedRock.disposedPoint._1} ${redisposedRock.disposedPoint._2} LEFT"
+                  redisposedRock.setDisposedBy(null)
+                  rock.setDisposedBy(null)
+                  out
+                }
+                ).getOrElse(currentIndiPath.commands(i))
+              }
+            }
+          }
+        case None => findMostDangerRockPath(currentIndiPath).map(d => {
+          val p = (d._1, d._2)
+          if (disposed.contains(p)) currentCommand
+          else {
+            disposed = disposed + p
+            s"${d._1} ${d._2} RIGHT"
+          }
+        }).getOrElse(currentCommand)
+      }
+    } else currentCommand
   }
 
   for (i <- LazyList.from(0).takeWhile(i => firstStep || i < currentIndiPath.path.length)) {
@@ -456,47 +520,23 @@ object Player extends App {
     pointRockMap = newPointRockMap
     newPointRockMap = null
 
-    val cmd: String = if (currentIndiPath.commands(i) == WAIT_CMD) {
-      val dangerRock = aliveRocks.find(r => r.isDanger(i, currentIndiPath))
-      dangerRock match {
-        case Some(rock) =>
-          rock.canAvoidClash(currentIndiPath) match {
-            case Right(p) =>
-              rock.setDisposedBy(p)
-              s"${p._1} ${p._2} RIGHT"
-            case Left(nothingToDo) => if (nothingToDo) currentIndiPath.commands(i) else {
-                allowedIndiPath = allowedIndiPath.filterNot(_.id == currentIndiPath.id)
-                findAnotherPath(currentIndiPath, rock, i) match {
-                  case Some(path) =>
-                    currentIndiPath = path
-                    currentIndiPath.commands(i)
-                  case None => tryToClashRocks(rocks, rock).map(redisposedRock => if (redisposedRock.disposedPoint == null) currentIndiPath.commands(i) else {
-                        val out = s"${redisposedRock.disposedPoint._1} ${redisposedRock.disposedPoint._2} LEFT"
-                        redisposedRock.setDisposedBy(null)
-                        rock.setDisposedBy(null)
-                        out
-                      }
-                    ).getOrElse(currentIndiPath.commands(i))
-                }
-              }
-          }
-        case None => findMostDangerRockPath().map(d => {
-          val p = (d._1, d._2)
-          if (disposed.contains(p)) currentIndiPath.commands(i)
-          else {
-            disposed = disposed + p
-            s"${d._1} ${d._2} RIGHT"
-          }
-        }).getOrElse(currentIndiPath.commands(i))
-      }
-    } else currentIndiPath.commands(i)
-
-
-//    Console.out.println(s"currentSquare=${currentIndiPath.path(i)} nextSquare=${currentIndiPath.path(i + 1)} cmd=$cmd")
+    var cmd: String = recalculateIfWait(rocks, aliveRocks, i, currentIndiPath.commands(i))
     val cmdNode = commandToNodeData(cmd)
-    val nextCorrectedCmd = cmdNode.map(node => if (node.getPoint == currentIndiPath.path(i + 1)) correct(node, cmd) else cmd).fold(l => l, r => r)
-//    val correctedCmd = onlyNext.map(correct(_, cmd)).getOrElse(cmd)
-    commandToNodeData(nextCorrectedCmd).foreach(n => mazeData(n.y)(n.x) = newType(mazeData(n.y)(n.x))(n.direct))
-    println(nextCorrectedCmd)
+    cmd = cmdNode.map(node => if (node.getPoint == currentIndiPath.path(i + 1)) correct(node, cmd) else cmd).fold(l => l, r => r)
+    if (needToRecalculateWait) {
+      cmd = recalculateIfWait(rocks, aliveRocks, i, cmd)
+      needToRecalculateWait = false
+    }
+    if (cmd == WAIT_CMD) {
+      currentIndiPath.commands.zipWithIndex.find(ci => ci._2 > i && ci._1 != WAIT_CMD).foreach(ci => {
+        val tmp = currentIndiPath.commands(ci._2)
+        currentIndiPath.commands(ci._2) = cmd
+        currentIndiPath.commands(i) = tmp
+        cmd = tmp
+      })
+    }
+    commandToNodeData(cmd).foreach(n => mazeData(n.y)(n.x) = newType(mazeData(n.y)(n.x))(n.direct))
+    println(cmd)
+
   }
 }
