@@ -25,7 +25,7 @@ object Player extends App {
 
   type Point = (Int, Int)
   //  type NodeData = (Int, Int, Directive)
-  type RockPointData = (Int, Int, Boolean)
+  type RockPointData = (Int, Int, Boolean, Directive)
   type NextXY = Point => NodeData
   type Maze = IndexedSeq[Array[Int]]
 
@@ -43,7 +43,7 @@ object Player extends App {
     def newWaitIndex(command: Directive) = if (command == WAIT) waitIndex + 1 else if (command == Directive.DOUBLE) waitIndex - 1 else waitIndex
   }
 
-  class Rock(var x: Int, var y: Int, var from: Directive, var path: RockPath, var disposed: Boolean, var step: Int, var disposedPoint: Point) {
+  class Rock(var x: Int, var y: Int, var from: Directive, var path: RockPath, var disposed: Boolean, var step: Int, var disposedPoint: NodeData) {
     lazy val pathArr = path.path.map(node => (node._1, node._2))
     def isDanger(currentStep: Int, indiPath: IndiPath) = {
       path.getClashByIndex(indiPath.id) match {
@@ -73,15 +73,35 @@ object Player extends App {
       val actualClashCandidatePath = clashCandidatePath.slice(clashCandidate.step, clashCandidatePath.length)
       if (path == null) false else {
         val myPath = path.path.slice(step, path.path.length)
+        val myPathPoints = myPath.map(xy => (xy._1, xy._2))
         val (shorterPath, longerPath) = if (myPath.length < actualClashCandidatePath.length) (myPath, actualClashCandidatePath) else (actualClashCandidatePath, myPath)
         shorterPath.zipWithIndex.exists(aip => (aip._1._1, aip._1._2) == (longerPath(aip._2)._1, longerPath(aip._2)._1)) || {
           // TODO: set disposed point to turn
-          false
+          clashCandidate.path.path.drop(clashCandidate.step).tail.exists(p => {
+            p._3 && List(LEFT, RIGHT).exists(nd => {
+              val (x,y) = (p._1, p._2)
+              val rockType = mazeData(y)(x)
+              val nt = newType(rockType)(nd)
+              val res = cross(nt, myPathPoints, p)
+              if (res) clashCandidate.disposedPoint = NodeData(p._1, p._2, nd)
+              res
+            })
+          })
         }
       }
     }
 
-    def setDisposedBy(p: Point){
+    private def cross(nt: Int, thisPath: List[Point], p: RockPointData): Boolean = {
+      val newXy = connection(nt).getOrElse(p._4, none _)(p._1, p._2)
+      if (newXy.direct == NONE) false else
+      if (thisPath.contains((newXy.x, newXy.y))) true else {
+        val newNt = mazeData(newXy.y)(newXy.x)
+        val newP = (newXy.x, newXy.y, false, newXy.direct)
+        cross(newNt, thisPath, newP)
+      }
+    }
+
+    def setDisposedBy(p: NodeData) {
       disposed = true
       path.disposed = true
       disposedPoint = p
@@ -251,7 +271,7 @@ object Player extends App {
     var loop = true
     var step = 0
     val indiPathId = mutable.Set.empty[Int]
-    var rockPath = ListSet((xr, yr, false))
+    var rockPath = ListSet((xr, yr, false, from))
     val clashData = ListBuffer.empty[ClashData]
 
     while (loop) {
@@ -272,14 +292,14 @@ object Player extends App {
         }
 
         if (x != xr || y != yr) {
-          rockPath += ((x, y, rockType > 0))
+          rockPath += ((x, y, rockType > 0, from))
         }
         x = newXy.x
         y = newXy.y
         from = newXy.direct
         step += 1
       } else {
-        rockPath += ((x, y, false))
+        rockPath += ((x, y, false, from))
         loop = false
       }
     }
@@ -339,7 +359,7 @@ object Player extends App {
 
     def calculate(initX: Int, initY: Int, from: Directive, exitX: Int) = {
       var stack = List(Node(initX, initY, from, NONE, mazeData(initY)(initX), 0, 0, null))
-      var exitNodes = ListBuffer.empty[Node]
+      val exitNodes = ListBuffer.empty[Node]
 
       while(stack.nonEmpty) {
         val currentNode = stack.head
@@ -440,7 +460,7 @@ object Player extends App {
         case Some(rock) =>
           rock.canAvoidClash(currentIndiPath) match {
             case Right(p) =>
-              rock.setDisposedBy(p)
+              rock.setDisposedBy(NodeData(p._1, p._2, RIGHT))
               s"${p._1} ${p._2} RIGHT"
             case Left(nothingToDo) => if (nothingToDo) currentCommand else {
               allowedIndiPath = allowedIndiPath.filterNot(_.id == currentIndiPath.id)
@@ -449,7 +469,7 @@ object Player extends App {
                   currentIndiPath = path
                   currentIndiPath.commands(i)
                 case None => tryToClashRocks(allRocks, rock).map(redisposedRock => if (redisposedRock.disposedPoint == null) currentCommand else {
-                  val out = s"${redisposedRock.disposedPoint._1} ${redisposedRock.disposedPoint._2} LEFT"
+                  val out = s"${redisposedRock.disposedPoint.x} ${redisposedRock.disposedPoint.y} ${redisposedRock.disposedPoint.direct}"
                   redisposedRock.setDisposedBy(null)
                   rock.setDisposedBy(null)
                   out
