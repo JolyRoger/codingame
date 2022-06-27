@@ -10,11 +10,11 @@ import scala.io.StdIn._
  **/
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-     val filename = "resources/greencircle/1.txt"
-     val bufferedSource = Source.fromFile(filename)
-     val data = bufferedSource.getLines
-     def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
-     def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
+  // val filename = "resources/greencircle/2.txt"
+  // val bufferedSource = Source.fromFile(filename)
+  // val data = bufferedSource.getLines
+  // def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
+  // def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
 //----------------------------------------------------------------------------------------------------------------------
   case class Application(id: Int,
                          trainingNeeded: Int,
@@ -28,8 +28,8 @@ object Player extends App {
     val skills = Array(trainingNeeded, codingNeeded, dailyRoutineNeeded, taskPrioritizationNeeded, architectureStudyNeeded, continuousDeliveryNeeded, codeReviewNeeded, refactoringNeeded)
     val notEmptySkills = skills.zipWithIndex.filter(indexSkill => indexSkill._1 != 0).map(_._2).toList
     val skillSum = skills.sum
-    private def diff(crs: (Int, Int)) = { val diff = crs._1 - crs._2; if (diff < 0) 0 else diff }
-    def absentSkills(card: Card) = skills.zip(card.usefulCards).map(diff).sum
+    private def diff(crs: (Int, Int)) = { val diff = crs._1 - crs._2 * 2; if (diff < 0) 0 else diff }
+    def applyCard(card: Card) = skills.zip(card.usefulCards).map(diff).sum - card.bonusCardsCount
   }
   case class Card(cardsLocation: String,
                   trainingCardsCount: Int,
@@ -43,11 +43,19 @@ object Player extends App {
                   bonusCardsCount: Int,
                   technicalDebtCardsCount: Int) {
     val usefulCards = Array(trainingCardsCount, codingCardsCount, dailyRoutineCardsCount, taskPrioritizationCardsCount, architectureStudyCardsCount, continuousDeliveryCardsCount, codeReviewCardsCount, refactoringCardsCount)
+
+    def applyTask(task: (Int, Int)) = {
+      val cardArr = Array(usefulCards(0), usefulCards(1), usefulCards(2), usefulCards(3), usefulCards(4), usefulCards(5), usefulCards(6), usefulCards(7), bonusCardsCount)
+      cardArr(task._1) -= 1
+      cardArr(task._2) += 1
+      Card(cardsLocation, cardArr(0), cardArr(1), cardArr(2), cardArr(3), cardArr(4), cardArr(5), cardArr(6), cardArr(7), cardArr(8), technicalDebtCardsCount)
+    }
   }
   var applications = List.empty[Application]
 
+  // HAND card and all possible skills allowing to be taken, eg List(0, 1, 3, 4, 6)
   def findMoveApp(card: Card, moves: List[Int]) = {
-    val sortedApps = applications.sortBy(app => app.absentSkills(card))
+    val sortedApps = applications.sortBy(app => app.applyCard(card))
     var moveOpt = Option.empty[Int]
     var appOpt = Option.empty[Application]
     for (app <- sortedApps) {
@@ -60,11 +68,95 @@ object Player extends App {
     (moveOpt, appOpt)
   }
   def findRelease(card: Card, releases: List[Int]) = {
-    val sortedApps = applications.sortBy(app => app.absentSkills(card))
+    val sortedApps = applications.sortBy(app => app.applyCard(card))
     sortedApps.headOption.map(_.id)
   }
 
-  var count = -1
+  def calculateCard(action: Int, actions: IndexedSeq[Int], cardsMap: Map[String, IndexedSeq[Card]], apps: List[Application]): String = {
+    if (actions.length < 2) s"MOVE $action" else {
+      val head = cardsMap("HAND").head
+      val newAppMap = apps.map(app => {
+        val currentAppScore = app.applyCard(head)       // current score: how many points remains to release
+        val priorityCalc = actions.map(action => {      // future score: how many points will remain after applying a card to the application
+          val newCard = head.applyTask((action, 0))
+          (action, app.applyCard(newCard))
+        })
+        val newBestAppScore = priorityCalc.minBy(_._2)   // the best score reachable for the application for this receiving action set. Minimize or maximize - it depends
+        Console.err.println(s"App ${app.id} cur=$currentAppScore best=${newBestAppScore._2} after (${newBestAppScore._1})")
+        (newBestAppScore._1, currentAppScore - newBestAppScore._2, newBestAppScore._2)
+      }).groupBy(_._2)
+      val minApps = newAppMap.minBy(_._1)._2
+      val newApp = minApps.maxBy(_._3)
+      Console.err.println(s"newApp: $newApp")
+      if (newApp._1 == action) s"MOVE $action" else s"MOVE $action ${newApp._1}"
+    }
+  }
+
+  def calculateGiveCard(movesMap: Map[String, IndexedSeq[String]], cardsMap: Map[String, IndexedSeq[Card]], apps: List[Application]): String = {
+    val gives = movesMap("GIVE").map(_.split(" ")(1).toInt)
+    val head = cardsMap("HAND").head
+    val newAppMap = apps.map(app => {
+      val currentAppScore = app.applyCard(head)
+      val priorityCalc = gives.map(give => {
+        val newCard = head.applyTask((give, 0))
+        (give, app.applyCard(newCard))
+      })
+      val newBestAppScore = priorityCalc.minBy(_._2)
+      Console.err.println(s"App ${app.id} cur=$currentAppScore best=${newBestAppScore._2} after (${newBestAppScore._1})")
+      (newBestAppScore._1, currentAppScore - newBestAppScore._2, newBestAppScore._2)
+    }).groupBy(_._2)
+    val minApps = newAppMap.minBy(_._1)._2
+    val newApp = minApps.maxBy(_._3)
+    Console.err.println(s"newApp: $newApp")
+    s"GIVE ${newApp._1}"
+  }
+
+  def calculatePlayCard(movesMap: Map[String, IndexedSeq[String]], cardsMap: Map[String, IndexedSeq[Card]], apps: List[Application]): String = {                                            // FIXME
+    var taskPrioritization = "RANDOM"
+    def drawingNeeded = {
+      cardsMap.contains("DRAW") && {
+        val draws = cardsMap("DRAW").head
+        draws.usefulCards.sum > 1 && draws.usefulCards.sum + draws.bonusCardsCount >= draws.technicalDebtCardsCount
+      }
+    }
+    def refactoringNeeded = cardsMap("HAND").head.technicalDebtCardsCount > 0
+    def taskPrioritizationNeeded = {
+      val throwTake = movesMap("TASK_PRIORITIZATION").map(_.split(" ")).map(arr => (arr(1).toInt, arr(2).toInt)).filterNot(tt => tt._1 == tt._2)
+      val head = cardsMap("HAND").head
+      val newAppMap = apps.map(app => {
+        val currentAppScore = app.applyCard(head)
+        val priorityCalc = throwTake.map(tt => {
+          val newCard = head.applyTask(tt)
+          (tt._1, tt._2, app.applyCard(newCard))
+        })
+        val newBestAppScore = priorityCalc.minBy(_._3)
+        //        Console.err.println(s"App ${app.id} cur=$currentAppScore best=${newBestAppScore._3} after (${newBestAppScore._1} ${newBestAppScore._2})")
+        (newBestAppScore._1, newBestAppScore._2, currentAppScore - newBestAppScore._3, newBestAppScore._3)
+      }).groupBy(_._3)
+      val minApps = newAppMap.maxBy(_._1)._2
+      val newApp = minApps.minBy(_._4)
+      taskPrioritization = if (newApp._3 > 0) s"TASK_PRIORITIZATION ${newApp._1} ${newApp._2}" else "DUMMY"
+      newApp._3 > 0
+    }
+
+    if (movesMap.contains("TRAINING") && drawingNeeded) {
+      "TRAINING"
+    } else if (movesMap.contains("CODING") && drawingNeeded) {
+      "CODING"
+    } else if (movesMap.contains("ARCHITECTURE_STUDY")) {
+      "ARCHITECTURE_STUDY"
+    } else if (movesMap.contains("DAILY_ROUTINE")) {
+      "DAILY_ROUTINE"
+    } else if (movesMap.contains("REFACTORING") && refactoringNeeded) {
+      "REFACTORING"
+    } else if (movesMap.contains("TASK_PRIORITIZATION") && taskPrioritizationNeeded) {
+      taskPrioritization
+    } else if (movesMap.contains("CODE_REVIEW")) {
+      "CODE_REVIEW"
+    } else "WAIT"
+  }
+
+  var count = 1
 
   // game loop
   while(true) {
@@ -151,26 +243,25 @@ object Player extends App {
 
     val move = if (gamePhase.equals("MOVE")) {
       val possibleMoves = movesMap("MOVE")
-      val movesIndex = possibleMoves.map(move => move.split(" ")(1).toInt).toList.sorted
-      val closestMove = movesIndex.find(_ > count).getOrElse(0)
+      //      val movesIndex = possibleMoves.map(move => move.split(" ")(1).toInt).toList.sorted
+      val movesIndex = possibleMoves.map(move => {
+        val movesArr = move.split(" ")
+        (movesArr(1).toInt, if (movesArr.length > 2) movesArr(2).toInt else movesArr(1).toInt )
+      }).groupMap(_._1)(_._2)
+      val closestMove = movesIndex.keys.find(_ > count).getOrElse(0)
+      //      val possibleTakes = movesIndex(closestMove).map(_._2).distinct
       count = closestMove
-      "MOVE " + closestMove
+      calculateCard(closestMove, movesIndex(closestMove), cardsMap, applications)
     } else if (gamePhase.equals("RELEASE")) {
       val possibleReleases = movesMap("RELEASE")
       val releasesIndex = possibleReleases.map(move => move.split(" ")(1).toInt).toList
       val releaseIndex = findRelease(cardsMap("HAND").toList.head, releasesIndex).map("RELEASE " + _).getOrElse("RANDOM")
       releaseIndex
+    } else if (gamePhase.equals("PLAY_CARD")) {
+      calculatePlayCard(movesMap, cardsMap, applications)
+    } else if (gamePhase.equals("GIVE_CARD")) {
+      calculateGiveCard(movesMap, cardsMap, applications)
     } else moves(0)
-
-    //    val move = if (gamePhase.equals("MOVE")) {
-    //      val possibleMoves = movesMap("MOVE")
-    //      val app = findMoveApp(cardsMap("HAND").toList.head, possibleMoves.toList.map(moveStr => moveStr.split(" ")(1).toInt))
-    //      Console.err.println(s"Min app is ${app._2.map(_.id).get}")
-    //      app._1.map(num => s"MOVE $num").getOrElse("RANDOM")
-    //    } else "RANDOM"
-    // Write an action using println
-    // To debug: Console.err.println("Debug messages...")
-
 
     // In the first league: RANDOM | MOVE <zoneId> | RELEASE <applicationId> | WAIT; In later leagues: | GIVE <cardType> | THROW <cardType> | TRAINING | CODING | DAILY_ROUTINE | TASK_PRIORITIZATION <cardTypeToThrow> <cardTypeToTake> | ARCHITECTURE_STUDY | CONTINUOUS_DELIVERY <cardTypeToAutomate> | CODE_REVIEW | REFACTORING;
     println(move)
