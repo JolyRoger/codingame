@@ -1,5 +1,6 @@
 package codingames.hard.voxcodei
 
+import scala.annotation.tailrec
 import scala.io.Source
 import scala.math._
 import scala.util._
@@ -10,7 +11,7 @@ object Calc {
 }
 object SquareType extends Enumeration {
   type SquareType = Value
-  val Air, Rock, Other = Value
+  val Air, Rock, Target, Bomb = Value
 }
 object Direction extends Enumeration {
   type Direction = Value
@@ -45,13 +46,14 @@ class Board(val squareMatrix: Array[Array[Square]]) {
   def this(charData: Array[Array[Char]], air: Char, rock: Char) = this(charData.zipWithIndex.map(arrIndex => arrIndex._1.zipWithIndex.map(
     symIndex => if (symIndex._1 == air)  AirSquare(symIndex._2, arrIndex._2, symIndex._1) else
       if (symIndex._1 == rock) RockSquare(symIndex._2, arrIndex._2, symIndex._1) else
-        OtherSquare(symIndex._2, arrIndex._2, symIndex._1)
+        TargetSquare(symIndex._2, arrIndex._2, symIndex._1)
   )))
   def this(rawData: List[String], air: Char, rock: Char) = this(rawData.map(_.toCharArray).toArray, air, rock)
 
   def apply(x: Int): Array[Square] = transposedMatrix(x)
 
-  private def findTypeSym(squareType: SquareType): Option[Char] = squareMatrix.flatten.find(_.squareType == squareType).map(_.sym)
+  def allSquares = squareMatrix.flatten
+  private def findTypeSym(squareType: SquareType): Option[Char] = allSquares.find(_.squareType == squareType).map(_.sym)
   private def transpose(matrix: Array[Array[Square]]): Array[Array[Square]] = matrix.head.indices.map(i => matrix.map(_(i))).toArray
 
   def show(squares: Set[Square]): Unit = {
@@ -59,7 +61,7 @@ class Board(val squareMatrix: Array[Array[Square]]) {
   }
 
   private def toString(squares: Set[Square]): String = {
-    squareMatrix.map(row => row.map(s => if (squares.contains(s)) '\u25AE' else s.sym).mkString("")).mkString("\n")
+    squareMatrix.map(row => row.map(s => if (squares.contains(s)) '\u25AE' else if (s.underAttack) 'A' else s.sym).mkString("")).mkString("\n")
   }
 
   override def toString: String = {
@@ -154,13 +156,15 @@ trait Neighbours extends AbstractGame {
 
 }
 object Square {
-  import SquareType.{Air, Rock, SquareType}
+  import SquareType.{Air, Rock, Target, Bomb, SquareType}
 
   def of(x: Int, y: Int, sym: Char, squareType: SquareType): Square =
     squareType match {
       case Air => AirSquare(x, y, sym)
       case Rock => RockSquare(x, y, sym)
-      case _ => OtherSquare(x, y, sym)
+      case Target => TargetSquare(x, y, sym)
+      case Bomb => BombSquare(x, y, sym)
+      case _ => throw new IllegalArgumentException("What the hell are you trying to create?!")
     }
 }
 sealed abstract class Square(val x: Int, val y: Int) {
@@ -168,33 +172,53 @@ sealed abstract class Square(val x: Int, val y: Int) {
 
   def air: Boolean
   def rock: Boolean
-  def other: Boolean
+  def target: Boolean
+  def bomb: Boolean
   def sym: Char
+  def countdown: Unit
   def squareType: SquareType
+  var targets: Set[Square] = Set.empty
   var free: Boolean = true
-  var opp: Boolean = true
-
+  var underAttack: Boolean = false
+  var explosionTime: Int = -1
+  val action = (x, y)
 }
 case class AirSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
   import SquareType.Air
   override val air = true
   override val rock = false
-  override val other = false
+  override val target = false
+  override val bomb = false
+  override val countdown: Unit = {}
   override val squareType = Air
 }
 case class RockSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
   import SquareType.Rock
   override val air = false
   override val rock = true
-  override val other = false
+  override val target = false
+  override val bomb = false
+  override val countdown: Unit = {}
   override val squareType = Rock
 }
-case class OtherSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
-  import SquareType.Other
+case class TargetSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
+  import SquareType.Target
   override val air = false
   override val rock = false
-  override val other = true
-  override val squareType = Other
+  override val target = true
+  override val bomb = false
+  override val countdown: Unit = {}
+  override val squareType = Target
+}
+case class BombSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
+  import SquareType.Bomb
+  explosionTime = 3
+  override val air = false
+  override val rock = false
+  override val target = false
+  override val bomb = true
+  override val countdown: Unit = { explosionTime = explosionTime - 1 }
+  override val squareType = Bomb
 }
 object Util {
 
@@ -214,13 +238,14 @@ object Util {
 
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/voxcodei/foresee-the-future.txt"
+  val filename = "resources/voxcodei/foresee-the-future-better.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
   def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
   def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
 //----------------------------------------------------------------------------------------------------------------------
 
+  type Action = Either[(Int, Int), String]
   val Array(width, height) = (readLine split " ").filter(_ != "").map (_.toInt)
   Console.err.println(s"$width $height")
   var countdownMap = Map.empty[Square, Int]
@@ -228,9 +253,11 @@ object Player extends App {
   var board = Util.linesToBoard(lines, rock = '#')
   Console.err.println(s"${board.toString}")
 
-  def findTarget(square: Square, game: Game) = game.neighboursWithDirectionWhile(square.x, square.y, game.cardinal, 3, !_.isInstanceOf[RockSquare]).map(_._1).filter(_.other)
+  def findTarget(square: Square, game: Game) = game.neighboursWithDirectionWhile(square.x, square.y, game.cardinal, 3, !_.rock)
+    .map(_._1)
+    .filter(_.target)
 
-  def update(board: Board, maxSquare: Square, maxTargets: Set[Square]) = {
+  def update2(board: Board, maxSquare: Square, maxTargets: Set[Square]) = {
     def createAirSquare(x: Int, y: Int) = {
       val square = Square.of(x, y, board.airChar, SquareType.Air)
       square.free = false
@@ -241,29 +268,62 @@ object Player extends App {
     newMatrix(maxSquare.y)(maxSquare.x).free = false
     new Board(newMatrix)
   }
-  def findSquare(board: Board) = {
+
+  def calculateSquares(board: Board) = {
     val game = new Game(board)
-    val squareTypeArr = board.squareMatrix.flatten
-    val freeSquares = squareTypeArr.filter(square => square.squareType == SquareType.Air && square.free).toSet
-    val squareTargetMap = freeSquares.map(square => (square, findTarget(square, game))).toMap
-    val squareAmountMap = freeSquares.map(square => (findTarget(square, game).size, square)).toMap
-//    val squareAmountMap = squareTargetMap.map(entry => (entry._2.size, entry._1)).collect {
-//
-//    }
+    val freeSquares = board.allSquares.filter(square => square.squareType == SquareType.Air && square.free && !square.underAttack).toList
+    freeSquares.map(square => (square, findTarget(square, game)))
+  }
+
+  def calculateMaps(board: Board) = {
+    val squareSet = calculateSquares(board)
+    val squareTargetMap = squareSet.toMap
+    val squareAmountMap = squareSet.map(squares => (squares._2.size, squares._1)).toMap
+    (squareTargetMap, squareAmountMap)
+  }
+
+  def findMaxSquare(board: Board) = {
+    val (squareTargetMap, squareAmountMap) = calculateMaps(board)
     val maxAmount = squareAmountMap.keysIterator.max
     val maxSquare = squareAmountMap(maxAmount)
     val maxTargets = squareTargetMap(maxSquare)
     (maxSquare, maxTargets)
   }
 
-  def calculate(globalRounds: Int, globalBombs: Int) = {
-    var rounds = globalRounds
-    var bombs = globalBombs
-    while (rounds > 0 && bombs > 0) {
-      val (maxSquare, maxTargets) = findSquare(board)
-      board = update(board, maxSquare, maxTargets)
+//  def update(board: Board, maxSquare: Square, maxTargets: Set[Square]) = {
+  def update(board: Board, action: Action, maxTargets: Set[Square]) = {
+    val newMatrix = board.squareMatrix.clone
+    action match {
+      case Left((x, y)) =>
+        newMatrix(y)(x) = Square.of(x, y, '*', SquareType.Bomb)
+        newMatrix(y)(x).targets = maxTargets
+        maxTargets.foreach(square => newMatrix(square.y)(square.x).underAttack = true)
+        board.allSquares.foreach(square => newMatrix(square.y)(square.x).countdown)
+        new Board(newMatrix)
+      case Right(_) =>
+        board.allSquares.foreach(square => newMatrix(square.y)(square.x).countdown)
+    }
+    for (row <- newMatrix.indices; column <- newMatrix(row).indices) {
+      if (newMatrix(column)(row).explosionTime == 0) {
+        newMatrix(column)(row).targets.foreach(target => {
+          newMatrix(target.y)(target.x) = Square.of(column, row, board.airChar, SquareType.Air)
+        })
+        newMatrix(column)(row) = Square.of(column, row, board.airChar, SquareType.Air)
+      }
+    }
+    new Board(newMatrix)
+  }
 
-
+  @tailrec
+  def calculate(board: Board, globalRounds: Int, globalBombs: Int, actions: List[Action]): List[Action] = {
+    if (globalRounds == 0) actions
+    else {
+      val (maxSquare, maxTargets) = findMaxSquare(board)
+      val updatedActions = Left(maxSquare.action) :: actions
+      val updatedBombs = globalBombs - 1
+      val updatedRounds = globalRounds - 1
+      val updatedBoard = update(board, Left(maxSquare.action), maxTargets)
+      calculate(updatedBoard, updatedRounds, updatedBombs, updatedActions)
     }
   }
 
@@ -272,12 +332,14 @@ object Player extends App {
     val Array(rounds, bombs) = (readLine split " ").filter(_ != "").map (_.toInt)
     Console.err.println(s"$rounds $bombs")
 
-    calculate(rounds, bombs)
+//    val (maxSquare, maxTargets) = findMaxSquare(board)
+//    board = update(board, maxSquare, maxTargets)
 
-    val (maxSquare, maxTargets) = findSquare(board)
-    board = update(board, maxSquare, maxTargets)
+//    val squares = calculateSquares(board).sortBy(_._2.size)
+    calculate(board, rounds, bombs, List.empty)
 
-    countdownMap = countdownMap + (maxSquare -> 3)
-    println(s"${maxSquare.x} ${maxSquare.y}")
+//    countdownMap = countdownMap + (maxSquare -> 3)
+//    println(s"${maxSquare.x} ${maxSquare.y}")
+    println("WAIT")
   }
 }
