@@ -292,23 +292,22 @@ object Player extends App {
 
 //  def update(board: Board, maxSquare: Square, maxTargets: Set[Square]) = {
   def update(board: Board, action: Action, maxTargets: Set[Square]) = {
-    val newMatrix = board.squareMatrix.clone
+    val newMatrix = board.squareMatrix.map(row => row.map(identity))
     action match {
       case Left((x, y)) =>
         newMatrix(y)(x) = Square.of(x, y, '*', SquareType.Bomb)
         newMatrix(y)(x).targets = maxTargets
         maxTargets.foreach(square => newMatrix(square.y)(square.x).underAttack = true)
         board.allSquares.foreach(square => newMatrix(square.y)(square.x).countdown)
-        new Board(newMatrix)
       case Right(_) =>
         board.allSquares.foreach(square => newMatrix(square.y)(square.x).countdown)
     }
     for (row <- newMatrix.indices; column <- newMatrix(row).indices) {
-      if (newMatrix(column)(row).explosionTime == 0) {
-        newMatrix(column)(row).targets.foreach(target => {
+      if (newMatrix(row)(column).explosionTime == 0) {
+        newMatrix(row)(column).targets.foreach(target => {
           newMatrix(target.y)(target.x) = Square.of(column, row, board.airChar, SquareType.Air)
         })
-        newMatrix(column)(row) = Square.of(column, row, board.airChar, SquareType.Air)
+        newMatrix(row)(column) = Square.of(column, row, board.airChar, SquareType.Air)
       }
     }
     new Board(newMatrix)
@@ -316,6 +315,8 @@ object Player extends App {
 
   @tailrec
   def calculate(board: Board, globalRounds: Int, globalBombs: Int, actions: List[Action]): List[Action] = {
+    if (board.allSquares.forall(square => !square.target || square.underAttack)) actions else
+    if (globalBombs == 0) actions else
     if (globalRounds == 0) actions
     else {
       val (maxSquare, maxTargets) = findMaxSquare(board)
