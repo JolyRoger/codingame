@@ -245,7 +245,11 @@ object Player extends App {
   def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
 //----------------------------------------------------------------------------------------------------------------------
 
-  type Action = Either[(Int, Int), String]
+  type Action = Either[Square, String]
+  type SquareData = (Square, Set[Square])
+  type Stack = List[SquareData]
+
+  case class State(action: Action, board: Board, rounds: Int, bombs: Int)
   val Array(width, height) = (readLine split " ").filter(_ != "").map (_.toInt)
   Console.err.println(s"$width $height")
   var countdownMap = Map.empty[Square, Int]
@@ -269,32 +273,34 @@ object Player extends App {
     new Board(newMatrix)
   }
 
-  def calculateSquares(board: Board) = {
+  def calculateSquares(board: Board): List[Square] = {
     val game = new Game(board)
     val freeSquares = board.allSquares.filter(square => square.squareType == SquareType.Air && square.free && !square.underAttack).toList
-    freeSquares.map(square => (square, findTarget(square, game)))
+    freeSquares.foreach(square => square.targets = findTarget(square, game))
+    freeSquares
   }
 
   def calculateMaps(board: Board) = {
     val squareSet = calculateSquares(board)
-    val squareTargetMap = squareSet.toMap
-    val squareAmountMap = squareSet.map(squares => (squares._2.size, squares._1)).toMap
-    (squareTargetMap, squareAmountMap)
+//    val squareTargetMap = squareSet.toMap
+    val squareAmountMap = squareSet.map(squares => (squares.targets.size, squares)).toMap
+    squareAmountMap
   }
 
   def findMaxSquare(board: Board) = {
-    val (squareTargetMap, squareAmountMap) = calculateMaps(board)
+    val squareAmountMap = calculateMaps(board)
     val maxAmount = squareAmountMap.keysIterator.max
     val maxSquare = squareAmountMap(maxAmount)
-    val maxTargets = squareTargetMap(maxSquare)
-    (maxSquare, maxTargets)
+    val maxTargets = maxSquare.targets
+    maxSquare
   }
 
 //  def update(board: Board, maxSquare: Square, maxTargets: Set[Square]) = {
   def update(board: Board, action: Action, maxTargets: Set[Square]) = {
     val newMatrix = board.squareMatrix.map(row => row.map(identity))
     action match {
-      case Left((x, y)) =>
+      case Left(square) =>
+        val (x, y) = square.action
         newMatrix(y)(x) = Square.of(x, y, '*', SquareType.Bomb)
         newMatrix(y)(x).targets = maxTargets
         maxTargets.foreach(square => newMatrix(square.y)(square.x).underAttack = true)
@@ -313,17 +319,38 @@ object Player extends App {
     new Board(newMatrix)
   }
 
-  @tailrec
-  def calculate(board: Board, globalRounds: Int, globalBombs: Int, actions: List[Action]): List[Action] = {
-    if (board.allSquares.forall(square => !square.target || square.underAttack)) actions else
-    if (globalBombs == 0) actions else
-    if (globalRounds == 0) actions
-    else {
-      val (maxSquare, maxTargets) = findMaxSquare(board)
-      val updatedActions = Left(maxSquare.action) :: actions
+  def calculate2(board: Board, globalRounds: Int, globalBombs: Int/*, actions: List[Action]*/): List[Action] = {
+    val maxSquare = calculateSquares(board).sortBy(_.targets.size).head
+    val action: Action = Left(maxSquare)
+    var states: List[State] = List(State(action, board, globalRounds, globalBombs))
+
+    while (!states.isEmpty || states.head.rounds != 0) {
+      val state = states.head
+      states = states.tail
+      val updatedActions = Left(maxSquares.head) :: actions
       val updatedBombs = globalBombs - 1
       val updatedRounds = globalRounds - 1
-      val updatedBoard = update(board, Left(maxSquare.action), maxTargets)
+      val updatedBoard = update(board, Left(maxSquares.head._1), maxSquares.head._2)
+    }
+
+    List.empty
+  }
+
+  @tailrec
+  def calculate(board: Board, globalRounds: Int, globalBombs: Int, actions: List[Action]): List[Action] = {
+    if (globalRounds == 0) actions else
+    if (board.allSquares.forall(square => !square.target || square.underAttack)) actions else
+    if (globalBombs == 0) {
+      val updatedActions = Right("WAIT") :: actions
+      val updatedBoard = update(board, Right("WAIT"), Set.empty)
+      calculate(updatedBoard, globalRounds - 1, 0, updatedActions)
+    } else {
+//      val (maxSquare, maxTargets) = findMaxSquare(board)
+      val maxSquares = calculateSquares(board).sortBy(_._2.size)
+      val updatedActions = Left(maxSquares.head._1) :: actions
+      val updatedBombs = globalBombs - 1
+      val updatedRounds = globalRounds - 1
+      val updatedBoard = update(board, Left(maxSquares.head._1), maxSquares.head._2)
       calculate(updatedBoard, updatedRounds, updatedBombs, updatedActions)
     }
   }
