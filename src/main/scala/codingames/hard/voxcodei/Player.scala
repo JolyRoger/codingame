@@ -1,9 +1,9 @@
 package codingames.hard.voxcodei
 
-import scala.annotation.tailrec
 import scala.io.Source
 import scala.math._
 import scala.util._
+import scala.io.StdIn._
 
 object Calc {
   def euclidean(a: (Int, Int), b: (Int, Int)): Double = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
@@ -182,6 +182,7 @@ sealed abstract class Square(val x: Int, val y: Int) {
   var underAttack: Boolean = false
   var explosionTime: Int = -1
   val action = (x, y)
+  def print = println(s"$x $y")
 }
 case class AirSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
   import SquareType.Air
@@ -238,7 +239,7 @@ object Util {
 
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/voxcodei/foresee-the-future-better.txt"
+  val filename = "resources/voxcodei/foresee-the-future.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
   def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
@@ -259,7 +260,7 @@ object Player extends App {
 
   def findTarget(square: Square, game: Game) = game.neighboursWithDirectionWhile(square.x, square.y, game.cardinal, 3, !_.rock)
     .map(_._1)
-    .filter(_.target)
+    .filter(square => square.target && !square.underAttack)
 
   def update2(board: Board, maxSquare: Square, maxTargets: Set[Square]) = {
     def createAirSquare(x: Int, y: Int) = {
@@ -275,14 +276,13 @@ object Player extends App {
 
   def calculateSquares(board: Board): List[Square] = {
     val game = new Game(board)
-    val freeSquares = board.allSquares.filter(square => square.squareType == SquareType.Air && square.free && !square.underAttack).toList
+    val freeSquares = board.allSquares.filter(square => square.squareType == SquareType.Air && square.free).toList
     freeSquares.foreach(square => square.targets = findTarget(square, game))
     freeSquares
   }
 
   def calculateMaps(board: Board) = {
     val squareSet = calculateSquares(board)
-//    val squareTargetMap = squareSet.toMap
     val squareAmountMap = squareSet.map(squares => (squares.targets.size, squares)).toMap
     squareAmountMap
   }
@@ -295,12 +295,12 @@ object Player extends App {
     maxSquare
   }
 
-//  def update(board: Board, maxSquare: Square, maxTargets: Set[Square]) = {
-  def update(board: Board, action: Action, maxTargets: Set[Square]) = {
+  def update(board: Board, action: Action) = {
     val newMatrix = board.squareMatrix.map(row => row.map(identity))
     action match {
       case Left(square) =>
         val (x, y) = square.action
+        val maxTargets = square.targets
         newMatrix(y)(x) = Square.of(x, y, '*', SquareType.Bomb)
         newMatrix(y)(x).targets = maxTargets
         maxTargets.foreach(square => newMatrix(square.y)(square.x).underAttack = true)
@@ -320,54 +320,38 @@ object Player extends App {
   }
 
   def calculate2(board: Board, globalRounds: Int, globalBombs: Int/*, actions: List[Action]*/): List[Action] = {
-    val maxSquare = calculateSquares(board).sortBy(_.targets.size).head
-    val action: Action = Left(maxSquare)
-    var states: List[State] = List(State(action, board, globalRounds, globalBombs))
+    var states: List[State] = List(State(Right("WAIT"), board, globalRounds, globalBombs))
 
-    while (!states.isEmpty || states.head.rounds != 0) {
-      val state = states.head
-      states = states.tail
-      val updatedActions = Left(maxSquares.head) :: actions
-      val updatedBombs = globalBombs - 1
-      val updatedRounds = globalRounds - 1
-      val updatedBoard = update(board, Left(maxSquares.head._1), maxSquares.head._2)
+    while (states.head.rounds != 0) {
+      val currentState = states.head
+      val updatedBombs = currentState.bombs - 1
+      val updatedRounds = currentState.rounds - 1
+      val action = if (states.head.bombs <= 0) {
+        Right("WAIT")
+      } else {
+        Left(calculateSquares(currentState.board).maxBy(_.targets.size))
+      }
+      val newBoard = update(currentState.board, action)
+      val newState = State(action, newBoard, updatedRounds, updatedBombs)
+      states = newState :: states
     }
-
-    List.empty
+    states.map(_.action).reverse.tail
   }
 
-  @tailrec
-  def calculate(board: Board, globalRounds: Int, globalBombs: Int, actions: List[Action]): List[Action] = {
-    if (globalRounds == 0) actions else
-    if (board.allSquares.forall(square => !square.target || square.underAttack)) actions else
-    if (globalBombs == 0) {
-      val updatedActions = Right("WAIT") :: actions
-      val updatedBoard = update(board, Right("WAIT"), Set.empty)
-      calculate(updatedBoard, globalRounds - 1, 0, updatedActions)
-    } else {
-//      val (maxSquare, maxTargets) = findMaxSquare(board)
-      val maxSquares = calculateSquares(board).sortBy(_._2.size)
-      val updatedActions = Left(maxSquares.head._1) :: actions
-      val updatedBombs = globalBombs - 1
-      val updatedRounds = globalRounds - 1
-      val updatedBoard = update(board, Left(maxSquares.head._1), maxSquares.head._2)
-      calculate(updatedBoard, updatedRounds, updatedBombs, updatedActions)
-    }
-  }
+  var needToCalculate = true
+  var actions = List.empty[Action]
 
   while(true) {
-    countdownMap = countdownMap.map(kv => (kv._1, kv._2 - 1)).filterNot(_._2 == 0)
     val Array(rounds, bombs) = (readLine split " ").filter(_ != "").map (_.toInt)
-    Console.err.println(s"$rounds $bombs")
-
-//    val (maxSquare, maxTargets) = findMaxSquare(board)
-//    board = update(board, maxSquare, maxTargets)
-
-//    val squares = calculateSquares(board).sortBy(_._2.size)
-    calculate(board, rounds, bombs, List.empty)
-
-//    countdownMap = countdownMap + (maxSquare -> 3)
-//    println(s"${maxSquare.x} ${maxSquare.y}")
-    println("WAIT")
+    if (needToCalculate) {
+      actions = calculate2(board, rounds, bombs)
+      needToCalculate = false
+    }
+    val action = actions.head
+    actions = actions.tail
+    action match {
+      case Left(square) => square.print
+      case Right(wait) => println(wait)
+    }
   }
 }
