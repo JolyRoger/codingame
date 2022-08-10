@@ -37,6 +37,7 @@ abstract class AbstractGame(board: Board) {
   }
 }
 class Board(val squareMatrix: Array[Array[Square]]) {
+
   import SquareType.SquareType
 
   val transposedMatrix = transpose(squareMatrix)
@@ -52,7 +53,9 @@ class Board(val squareMatrix: Array[Array[Square]]) {
 
   def apply(x: Int): Array[Square] = transposedMatrix(x)
 
+  def clear() = !allSquares.exists(_.target)
   def allSquares = squareMatrix.flatten
+  def bombSquares = allSquares.filter(_.bomb)
   private def findTypeSym(squareType: SquareType): Option[Char] = allSquares.find(_.squareType == squareType).map(_.sym)
   private def transpose(matrix: Array[Array[Square]]): Array[Array[Square]] = matrix.head.indices.map(i => matrix.map(_(i))).toArray
 
@@ -158,7 +161,7 @@ trait Neighbours extends AbstractGame {
 object Square {
   import SquareType.{Air, Rock, Target, Bomb, SquareType}
 
-  def of(x: Int, y: Int, sym: Char, squareType: SquareType): Square =
+  def of(x: Int, y: Int, sym: Char, squareType: SquareType): Square = {
     squareType match {
       case Air => AirSquare(x, y, sym)
       case Rock => RockSquare(x, y, sym)
@@ -166,6 +169,8 @@ object Square {
       case Bomb => BombSquare(x, y, sym)
       case _ => throw new IllegalArgumentException("What the hell are you trying to create?!")
     }
+  }
+
 }
 sealed abstract class Square(val x: Int, val y: Int) {
   import SquareType.SquareType
@@ -183,6 +188,7 @@ sealed abstract class Square(val x: Int, val y: Int) {
   var explosionTime: Int = -1
   val action = (x, y)
   def print = println(s"$x $y")
+  override def toString: String = s"[$x,$y]:$explosionTime"
 }
 case class AirSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
   import SquareType.Air
@@ -213,7 +219,7 @@ case class TargetSquare(override val x: Int, override val y: Int, override val s
 }
 case class BombSquare(override val x: Int, override val y: Int, override val sym: Char) extends Square(x, y) {
   import SquareType.Bomb
-  explosionTime = 3
+  explosionTime = 4
   override val air = false
   override val rock = false
   override val target = false
@@ -239,18 +245,27 @@ object Util {
 
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/voxcodei/foresee-the-future.txt"
+//  val filename = "resources/voxcodei/foresee-the-future-better.txt"
+//  val filename = "resources/voxcodei/foresee-the-future.txt"
+  val filename = "resources/voxcodei/not-so-fast.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
   def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
   def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
 //----------------------------------------------------------------------------------------------------------------------
 
-  type Action = Either[Square, String]
   type SquareData = (Square, Set[Square])
   type Stack = List[SquareData]
 
-  case class State(action: Action, board: Board, rounds: Int, bombs: Int)
+  case class Action(action: Either[String, Square], marked: Boolean) {
+    override def toString: String = action.toOption.map(_.toString).getOrElse("WAIT")
+  }
+  case class Transition(prevState: State, action: Action) {
+    override def toString: String = action.toString
+  }
+  case class State(board: Board, rounds: Int, bombs: Int, transition: Transition, level: Int) {
+    override def toString: String = transition + s" round=$rounds bombs=$bombs level=$level"
+  }
   val Array(width, height) = (readLine split " ").filter(_ != "").map (_.toInt)
   Console.err.println(s"$width $height")
   var countdownMap = Map.empty[Square, Int]
@@ -289,29 +304,40 @@ object Player extends App {
 
   def findMaxSquare(board: Board) = {
     val squareAmountMap = calculateMaps(board)
-    val maxAmount = squareAmountMap.keysIterator.max
-    val maxSquare = squareAmountMap(maxAmount)
-    val maxTargets = maxSquare.targets
-    maxSquare
+    squareAmountMap(squareAmountMap.keysIterator.max)
   }
 
   def update(board: Board, action: Action) = {
     val newMatrix = board.squareMatrix.map(row => row.map(identity))
-    action match {
-      case Left(square) =>
+    action.action match {
+      case Right(square) =>
         val (x, y) = square.action
         val maxTargets = square.targets
         newMatrix(y)(x) = Square.of(x, y, '*', SquareType.Bomb)
         newMatrix(y)(x).targets = maxTargets
-        maxTargets.foreach(square => newMatrix(square.y)(square.x).underAttack = true)
-        board.allSquares.foreach(square => newMatrix(square.y)(square.x).countdown)
-      case Right(_) =>
-        board.allSquares.foreach(square => newMatrix(square.y)(square.x).countdown)
+        maxTargets.foreach(square => {
+          val newTarget = Square.of(square.x, square.y, '+', SquareType.Target)
+          newTarget.underAttack = true
+          newMatrix(square.y)(square.x) = newTarget
+        })
+        board.bombSquares.foreach(square => {
+          val newBomb = Square.of(square.x, square.y, '*', SquareType.Bomb)
+          newBomb.explosionTime = newMatrix(square.y)(square.x).explosionTime - 1
+          newBomb.targets = newMatrix(square.y)(square.x).targets
+          newMatrix(square.y)(square.x) = newBomb
+        })
+      case Left(_) =>
+        board.bombSquares.foreach(square => {
+          val newBomb = Square.of(square.x, square.y, '*', SquareType.Bomb)
+          newBomb.explosionTime = newMatrix(square.y)(square.x).explosionTime - 1
+          newBomb.targets = newMatrix(square.y)(square.x).targets
+          newMatrix(square.y)(square.x) = newBomb
+        })
     }
     for (row <- newMatrix.indices; column <- newMatrix(row).indices) {
       if (newMatrix(row)(column).explosionTime == 0) {
         newMatrix(row)(column).targets.foreach(target => {
-          newMatrix(target.y)(target.x) = Square.of(column, row, board.airChar, SquareType.Air)
+          newMatrix(target.y)(target.x) = Square.of(target.x, target.y, board.airChar, SquareType.Air)
         })
         newMatrix(row)(column) = Square.of(column, row, board.airChar, SquareType.Air)
       }
@@ -319,39 +345,80 @@ object Player extends App {
     new Board(newMatrix)
   }
 
-  def calculate2(board: Board, globalRounds: Int, globalBombs: Int/*, actions: List[Action]*/): List[Action] = {
-    var states: List[State] = List(State(Right("WAIT"), board, globalRounds, globalBombs))
-
-    while (states.head.rounds != 0) {
-      val currentState = states.head
-      val updatedBombs = currentState.bombs - 1
-      val updatedRounds = currentState.rounds - 1
-      val action = if (states.head.bombs <= 0) {
-        Right("WAIT")
-      } else {
-        Left(calculateSquares(currentState.board).maxBy(_.targets.size))
+  def calculateActions(state: State) = {
+    if (state.rounds > 0) {
+      (if (state.bombs > 0) {
+        calculateSquares(state.board).filterNot(sq => sq.targets.isEmpty).sortBy(sqq => sqq.targets.size).reverse.map(sqqq => Right(sqqq)).take(5)
       }
-      val newBoard = update(currentState.board, action)
-      val newState = State(action, newBoard, updatedRounds, updatedBombs)
-      states = newState :: states
+      else List.empty) :+ Left("WAIT")
+    } else {
+      List.empty
     }
-    states.map(_.action).reverse.tail
+  }
+  def transition(state: State): List[State] = {
+    val actions = calculateActions(state).map(Action(_, false))   // FIXME: убрать на хрен этот параметр
+    val newBoardAction = actions.map(action => (update(state.board, action), action))
+    val newStates = newBoardAction.map(boardAction => State(boardAction._1,
+      state.rounds - 1,
+      if (boardAction._2.action.isRight) state.bombs - 1 else state.bombs,
+      Transition(state, boardAction._2), state.level + 1))
+    newStates
+  }
+
+//  def transition2(state: State): List[State] = {
+//    val newBoards = state.actions.map(action => (update(state.board, action), action))
+//    val newDoings = newBoards.map(boardAction => (boardAction._1, calculateActions(state/*, boardAction._1*/), boardAction._2))
+//    val newActions = newDoings.map(data => (data._1, data._2.map(aa => Action(aa, marked = false)), data._3))
+//    val newStates = newActions.map(data => State(data._1, state.rounds - 1, if (data._3.action.isRight) state.bombs - 1 else state.bombs, data._2, Transition(state, data._3), state.level + 1))
+//    newStates
+//  }
+
+  def calculate(board: Board, globalRounds: Int, globalBombs: Int): List[Action] = {
+    var stack = List.empty[State]
+    val initialState = State(board, globalRounds, globalBombs, null, 0)
+    stack = initialState :: stack
+    var currentState = stack.head
+
+    while (stack.headOption.exists(_.board.allSquares.exists(_.target))) {
+      currentState = stack.head
+      stack = stack.tail
+
+//      Console.err.println(s"\tcurrent: ${currentState.toString}")
+//      stack.foreach(state => Console.err.println(s"${state.toString}"))
+
+      val nextStates = transition(currentState)
+      stack = nextStates ::: stack
+//      Console.err.println
+    }
+
+    Console.err.println("List output:")
+    var actionList: List[Action] = List.empty
+
+    while (currentState.transition != null) {
+      actionList = currentState.transition.action :: actionList
+      currentState = currentState.transition.prevState
+    }
+    actionList
   }
 
   var needToCalculate = true
   var actions = List.empty[Action]
 
-  while(true) {
+  do {
     val Array(rounds, bombs) = (readLine split " ").filter(_ != "").map (_.toInt)
     if (needToCalculate) {
-      actions = calculate2(board, rounds, bombs)
+      actions = calculate(board, rounds, bombs)
       needToCalculate = false
     }
-    val action = actions.head
-    actions = actions.tail
-    action match {
-      case Left(square) => square.print
-      case Right(wait) => println(wait)
+    if (actions.nonEmpty) {
+      val action = actions.head
+      actions = actions.tail
+      action.action match {
+        case Right(square) => square.print
+        case Left(wait) => println(wait)
+      }
+    } else {
+      println("WAIT")
     }
-  }
+  } while(true);
 }
