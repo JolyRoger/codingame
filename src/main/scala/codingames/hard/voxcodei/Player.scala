@@ -248,6 +248,7 @@ object Player extends App {
 //  val filename = "resources/voxcodei/foresee-the-future-better.txt"
 //  val filename = "resources/voxcodei/foresee-the-future.txt"
   val filename = "resources/voxcodei/not-so-fast.txt"
+//  val filename = "resources/voxcodei/destroy.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
   def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
@@ -388,7 +389,7 @@ object Player extends App {
 
       val nextStates = transition(currentState)
       stack = nextStates ::: stack
-//      Console.err.println
+      Console.err.println(stack.size)
     }
 
     Console.err.println("List output:")
