@@ -7,70 +7,78 @@ import scala.io.StdIn._
 
 object Player2 extends App {
   //------------------------------------------FILE ENTRY------------------------------------------------------------------
-//    val filename = "resources/voxcodei/foresee-the-future-better.txt"
-  //  val filename = "resources/voxcodei/foresee-the-future.txt"
+  val filename = "resources/voxcodei/foresee-the-future-better.txt"
+//  val filename = "resources/voxcodei/foresee-the-future.txt"
 //  val filename = "resources/voxcodei/not-so-fast.txt"
-    val filename = "resources/voxcodei/destroy.txt"
+//  val filename = "resources/voxcodei/destroy.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
   def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
   def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
   //----------------------------------------------------------------------------------------------------------------------
 
-  type Matrix = List[List[Int]]
+  type Matrix = Array[Array[Int]]
   var needToCalculate = true
   val AIR = 0
+  val BOMB = 4
   val STONE = -2
   val TARGET = -1
 
-  val Array(width, height) = (readLine split " ").filter(_ != "").map (_.toInt)
+  val Array(width, height) = (readLine split " ").withFilter(_ != "").map(_.toInt)
   Console.err.println(s"$width $height")
 
   def toMatrix(number: Int): (Int, Int) = (number % width, number / width)
-  def toNumber(point: (Int, Int)): Int = point._2 * width + point._1 % width
+  implicit def toNumber(point: (Int, Int)): Int = point._2 * width + point._1 % width
 
   var symMap = Map('.' -> AIR, '@' -> TARGET, '#' -> STONE)
-  val lines = (for(_ <- 0 until height) yield readLine).toList
-  val initialMatrix = lines.map(_.map(symMap(_)).toList)
-  val initialArray = initialMatrix.flatten
+  val lines = (for(_ <- 0 until height) yield readLine).toArray
+  val initialMatrix = lines.flatMap(_.map(symMap(_)).toArray)
 
-  def calculateSquare(x: Int, y: Int, matrix: Matrix) = {
+  def calculateSquare(xy: Int, matrix: Array[Int]) = {
     val step = 3
     var proceed = true
-    val res1 = for (dy <- 1 to step; if y - dy >= 0; if matrix(y - dy)(x) < 0) yield {
-      if (matrix(y - dy)(x) == STONE) {
+    val (x,y) = toMatrix(xy)
+    val res1 = for (dy <- 1 to step; if y - dy >= 0; if matrix((x, y - dy)) < 0) yield {
+      if (matrix((x, y - dy)) == STONE) {
         proceed = false
       }
-      (x, y - dy)
+      toNumber((x, y - dy))
     }
     proceed = true
-    val res2 = for (dy <- 1 to step; if y + dy < height; if proceed; if matrix(y + dy)(x) < 0) yield {
-      if (matrix(y + dy)(x) == STONE) {
+    val res2 = for (dy <- 1 to step; if y + dy < height; if proceed; if matrix((x, y + dy)) < 0) yield {
+      if (matrix((x, y + dy)) == STONE) {
         proceed = false
       }
-      (x, y + dy)
+      toNumber((x, y + dy))
     }
     proceed = true
-    val res3 = for (dx <- 1 to step; if x - dx >= 0; if proceed; if matrix(y)(x - dx) < 0) yield {
-      if (matrix(y)(x - dx) == STONE) {
+    val res3 = for (dx <- 1 to step; if x - dx >= 0; if proceed; if matrix((x - dx, y)) < 0) yield {
+      if (matrix((x - dx, y)) == STONE) {
         proceed = false
       }
-      (x - dx, y)
+      toNumber((x - dx, y))
     }
     proceed = true
-    val res4 = for (dx <- 1 to step; if x + dx < width; if proceed; if matrix(y)(x + dx) < 0) yield {
-      if (matrix(y)(x + dx) == STONE) {
+    val res4 = for (dx <- 1 to step; if x + dx < width; if proceed; if matrix((x + dx, y)) < 0) yield {
+      if (matrix((x + dx, y)) == STONE) {
         proceed = false
       }
-      (x + dx, y)
+      toNumber((x + dx, y))
     }
-    (res1 ++ res2 ++ res3 ++ res4).toList.filter(xy => matrix(xy._2)(xy._1) == TARGET)
+    (res1 ++ res2 ++ res3 ++ res4).filter(matrix(_) == TARGET).toList
   }
 
-  def calculateSquares(matrix: Matrix) = {
-    (for (y <- matrix.indices; x <- matrix.head.indices; if (matrix(y)(x) == AIR)) yield {
-      ((x,y), calculateSquare(x, y, matrix))
+  def calculateSquares(matrix: Array[Int]) = {
+    (for (square <- matrix.indices; if matrix(square) == AIR) yield {
+      (square, calculateSquare(square, matrix))
     }).sortBy(_._2.length)(Ordering.Int.reverse)
+  }
+
+  def putBomb(to: Int, oldState: Array[Int]): Array[Int] = {
+    val newState = oldState.clone()
+    calculateSquare(to, newState).foreach(newState(_) = BOMB)
+    newState(to) = BOMB
+    newState
   }
 
   def newStates(oldState: Matrix): List[Matrix] = {
@@ -78,13 +86,15 @@ object Player2 extends App {
   }
 
   do {
-    val Array(rounds, bombs) = (readLine split " ").filter(_ != "").map (_.toInt)
+    val Array(rounds, bombs) = (readLine split " ").withFilter(_ != "").map (_.toInt)
     if (needToCalculate) {
-      val res = calculateSquares(initialMatrix)
+//      val res = calculateSquares(initialMatrix)
       needToCalculate = false
-      res.foreach(entry => Console.err.println(s"${entry._1} -> ${entry._2}"))
-      Console.err.println(s"res=${res.toString}")
+//      res.foreach(entry => Console.err.println(s"${entry._1}[${toMatrix(entry._1)}] -> ${entry._2}"))
+//      Console.err.println(s"res=${res.toString}")
+//      val oldaState = Array(1,2,3,4,5)
+      val newState = putBomb(19, initialMatrix)
     }
-//    println("WAIT")
+//      println(newState)
   } while(true)
 }
