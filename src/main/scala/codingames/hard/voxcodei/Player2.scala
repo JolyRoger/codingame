@@ -7,9 +7,9 @@ import scala.io.StdIn._
 
 object Player2 extends App {
   //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/voxcodei/foresee-the-future-better.txt"
+//  val filename = "resources/voxcodei/foresee-the-future-better.txt"
 //  val filename = "resources/voxcodei/foresee-the-future.txt"
-//  val filename = "resources/voxcodei/not-so-fast.txt"
+  val filename = "resources/voxcodei/not-so-fast.txt"
 //  val filename = "resources/voxcodei/destroy.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
@@ -33,6 +33,17 @@ object Player2 extends App {
   var symMap = Map('.' -> AIR, '@' -> TARGET, '#' -> STONE)
   val lines = (for(_ <- 0 until height) yield readLine).toArray
   val initialMatrix = lines.flatMap(_.map(symMap(_)).toArray)
+
+  def print(matrix: Array[Int]): Unit = {
+    for (i <- matrix.indices) {
+      if (i % width == 0) Console.err.println
+      val sym = if (matrix(i) == AIR) "."
+                else if (matrix(i) == STONE) "*"
+                else if (matrix(i) == TARGET) "T"
+                else matrix(i).toString
+      Console.err.print(s"$sym")
+    }
+  }
 
   def calculateSquare(xy: Int, matrix: Array[Int]) = {
     val step = 3
@@ -74,6 +85,8 @@ object Player2 extends App {
     }).sortBy(_._2.length)(Ordering.Int.reverse)
   }
 
+  def tick(oldState: Array[Int]): Array[Int] = oldState.map(square => if (square > AIR && square <= BOMB) square - 1 else square)
+
   def putBomb(to: Int, oldState: Array[Int]): Array[Int] = {
     val newState = oldState.clone()
     calculateSquare(to, newState).foreach(newState(_) = BOMB)
@@ -93,8 +106,19 @@ object Player2 extends App {
 //      res.foreach(entry => Console.err.println(s"${entry._1}[${toMatrix(entry._1)}] -> ${entry._2}"))
 //      Console.err.println(s"res=${res.toString}")
 //      val oldaState = Array(1,2,3,4,5)
-      val newState = putBomb(19, initialMatrix)
+      print(initialMatrix)
+      val newState = putBomb(82, initialMatrix)
+      Console.err.println
+      Console.err.print(s"============================")
+      print(newState)
+      val tickState = tick(newState)
+      Console.err.println
+      Console.err.print(s"TICK")
+      print(tickState)
+      val tackState = tick(tickState)
+      Console.err.println
+      Console.err.print(s"TACK")
+      print(tackState)
     }
-//      println(newState)
   } while(true)
 }
