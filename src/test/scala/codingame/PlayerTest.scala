@@ -1,10 +1,10 @@
 package codingame
 
-import codingames.hard.voxcodei.{Player, Player2}
+import codingames.hard.voxcodei.Player
 import org.scalatest.flatspec.AnyFlatSpec
 
 class PlayerTest extends AnyFlatSpec {
-  "A Player2" should "run application" in {
-    Player2.main(Array.empty[String])
+  "A Player" should "run application" in {
+    Player.main(Array.empty[String])
   }
 }
