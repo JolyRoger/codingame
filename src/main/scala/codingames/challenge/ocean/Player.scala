@@ -188,14 +188,12 @@ object Player extends App {
 
 
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-/*
   val filename = "ocean/ocean2.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
 
   def readInt = if (data.hasNext) data.next.toInt else -1
   def readLine = if (data.hasNext) data.next else "EOF"
-*/
 //----------------------------------------------------------------------------------------------------------------------
 
   def euclidean(a: (Int, Int), b: (Int, Int)) = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
