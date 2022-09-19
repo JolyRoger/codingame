@@ -70,7 +70,7 @@ object Player extends App {
   var units = List.empty[Person]
 
   def toNumber(x: Int, y: Int): Int = y * width + x % width
-  def toNumber(point: (Int, Int)): Int = point._2 * width + point._1 % width
+  implicit def toNumber(point: (Int, Int)): Int = point._2 * width + point._1 % width
   def toMatrix(number: Int): (Int, Int) = (number % width, number / width)
 
   def freeAdjacent(num: Int, allUnitsMap: UnitMap, available: Reachable) = {
@@ -79,7 +79,7 @@ object Player extends App {
       xy._1 < width &&
       xy._2 >=0 &&
       xy._2 < height &&
-      matrix(num) != STONE &&
+      matrix(xy) != STONE &&
       !allUnitsMap.contains((xy._1, xy._2)) &&
       available(num)
     ).map(toNumber)
