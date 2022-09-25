@@ -19,7 +19,8 @@ object Player extends App {
 //----------------------------------------------------------------------------------------------------------------------
   type UnitMap = Map[(Int, Int), Person]
   type BfsResult = (Array[Int], Array[Int])
-  type BfsMap = Map[Int, Map[Int, (Int, Int)]]    // myUnitId -> Map[unitCoord -> (firstMove, pathLength)]
+  type BfsMap = Map[Int, Map[Int, Array[Int]]]    // myUnitId -> Map[unitCoord -> (firstMove, pathLength)]
+  type Reachable = Int => Boolean
 
   case class Person(unitId: Int, isLeader: Boolean, hp: Int, x: Int, y: Int, owner: Int) {
     val asNumber = y * width + x % width
@@ -27,12 +28,19 @@ object Player extends App {
       xy._1 < width &&
       xy._2 >=0 &&
       xy._2 < height &&
-      matrix(xy._2)(xy._1) != STONE)
+      matrix(toNumber(xy)) != STONE)
     val neighboursNum = neighbours.map(toNumber)
 
     def freeSquares(unitMap: UnitMap) = this.neighbours.toSet -- unitMap.keySet
     def freeSquaresAsNum(units: UnitMap) = freeSquares(units).map(toNumber)
-    def distanceTo(unit: Person) = Math.abs(x - unit.x) + Math.abs(y - unit.y);
+    def distanceTo(unit: Person) = Math.abs(x - unit.x) + Math.abs(y - unit.y)
+    def distanceTo(target: Int) = {
+      val (unitX, unitY) = toMatrix(target)
+      Math.abs(x - unitX) + Math.abs(y - unitY)
+    }
+    def distanceBfs(target: Person, bfsMap: BfsMap) = if (bfsMap.contains(unitId)) {
+      if (bfsMap(unitId).contains(target.unitId)) Some(bfsMap(unitId)(target.unitId).length) else None
+    } else None
     def neighbourUnits(units: List[Person]) = {
       val personMap = units.map(person => ((person.x, person.y), person)).toMap
       personMap.keySet.intersect(this.neighbours.toSet).map(personMap(_))
@@ -50,35 +58,35 @@ object Player extends App {
   val STONE = -2
   val symMap = Map('.' -> AIR, 'x' -> STONE)
   val myId = readLine.toInt // 0 - you are the first player, 1 - you are the second player
-  Console.err.println(s"$myId")
-  // width: Width of the board
-  // height: Height of the board
+  // Console.err.println(s"$myId")
   val Array(width, height) = (readLine split " ").filter(_ != "").map (_.toInt)
-  Console.err.println(s"$width $height")
-  val matrix = for(_ <- 0 until height) yield {
-    val line = readLine
-    Console.err.println(s"$line")
-    line.map(symMap(_))
-  }
+  // Console.err.println(s"$width $height")
+
+  val lines = (for(_ <- 0 until height) yield readLine).toArray
+  //  lines.foreach(Console.err.println)
+  val matrix = lines.flatMap(_.map(symMap(_)).toArray)
+
   var bfsRes = mutable.Map.empty[Int, BfsResult]
   var units = List.empty[Person]
 
+  def toNumber(x: Int, y: Int): Int = y * width + x % width
   def toNumber(point: (Int, Int)): Int = point._2 * width + point._1 % width
   def toMatrix(number: Int): (Int, Int) = (number % width, number / width)
 
-  def freeAdjacent(num: Int, allUnitsMap: UnitMap) = {
+  def freeAdjacent(num: Int, allUnitsMap: UnitMap, available: Reachable) = {
     val (x, y) = toMatrix(num)
     List((x, y + 1), (x, y - 1), (x + 1, y), (x - 1, y)).withFilter(xy => xy._1 >= 0 &&
       xy._1 < width &&
       xy._2 >=0 &&
       xy._2 < height &&
-      matrix(xy._2)(xy._1) != STONE &&
-      !allUnitsMap.contains((xy._1, xy._2))
+      matrix(num) != STONE &&
+      !allUnitsMap.contains((xy._1, xy._2)) &&
+      available(num)
     ).map(toNumber)
   }
 
 
-  def bfs(from: Person, unitMap: UnitMap) = {
+  def bfs(from: Person, unitMap: UnitMap, available: Reachable) = {
     val dimension = width * height
     val marked: Array[Boolean] = new Array[Boolean](dimension)
     val edgeTo = Array.fill[Int](dimension)(Int.MaxValue)
@@ -90,7 +98,7 @@ object Player extends App {
     distTo(from.asNumber) = 0
     while (q.nonEmpty) {
       val v = q.dequeue
-      freeAdjacent(v, unitMap).filterNot(marked).foreach {
+      freeAdjacent(v, unitMap, available).filterNot(marked).foreach {
         w => {
           q.enqueue(w)
           marked(w) = true
@@ -102,8 +110,8 @@ object Player extends App {
     (edgeTo, distTo)
   }
 
-  def bfsMap(mine: List[Person], enemy: List[Person], unitMap: UnitMap): BfsMap = {
-    def bfsToUnit(bfs: BfsResult, enemy: Person) = {
+  def bfsMap(mine: List[Person], enemy: List[Person], unitMap: UnitMap, available: Reachable): BfsMap = {
+    def bfsToUnit(bfs: BfsResult, enemy: Person): Option[Array[Int]] = {
       Some { enemy.freeSquaresAsNum(unitMap)
         .withFilter(bfs._2(_) < Int.MaxValue)
         .map(neighbour => (neighbour, bfs._2(neighbour)))
@@ -111,19 +119,19 @@ object Player extends App {
         .map { targets =>
           val target = targets.minBy(_._2)
           var i = target._1
-          var next = i
           var index = target._2
+          val outArr = Array.ofDim[Int](target._2)
 
           while(bfs._1(i) < Int.MaxValue) {
             index -= 1
-            next = i
+            outArr(index) = i
             i = bfs._1(i)
           }
-          (next, target._2)
+          outArr
         }
     }
-    def bfsToUnits(myUnit: Person, others: List[Person]): Map[Int, (Int, Int)] = {
-      val unitBfs = bfs(myUnit, unitMap)
+    def bfsToUnits(myUnit: Person, others: List[Person], available: Reachable): Map[Int, Array[Int]] = {
+      val unitBfs = bfs(myUnit, unitMap, available)
       bfsRes.put(myUnit.unitId, unitBfs)
 
       others.map(other => (other.unitId, bfsToUnit(unitBfs, other)))
@@ -132,7 +140,7 @@ object Player extends App {
         }.toMap
     }
 
-    mine.map(me => (me.unitId, bfsToUnits(me, enemy))).toMap
+    mine.map(me => (me.unitId, bfsToUnits(me, enemy, available))).toMap
   }
 
   def checkBulletPath(startX: Int, startY: Int, targetX: Int, targetY: Int, unitMap: Map[(Int, Int), Person]) =
@@ -172,7 +180,7 @@ object Player extends App {
         out = (targetX, targetY)
         exit = true
       } else {
-        if (matrix(currentY)(currentX) == STONE
+        if (matrix(toNumber(currentX, currentY)) == STONE
           || unitMap.contains((currentX, currentY))
           && unitMap((currentX, currentY)).hp > 0) {
           out = (currentX, currentY)
@@ -216,7 +224,7 @@ object Player extends App {
         out = (targetX, targetY)
         exit = true
       } else {
-        if (matrix(currentY)(currentX) == STONE
+        if (matrix(toNumber(currentX, currentY)) == STONE
           || unitMap.contains((currentX, currentY))
           && unitMap((currentX, currentY)).hp > 0) {
           out = (currentX, currentY)
@@ -227,9 +235,17 @@ object Player extends App {
     out
   }
 
+  def isDanger(enemy: List[Person], target: Int, unitMap: UnitMap) = enemy.exists(unit => unit.canShoot(target, unitMap) && unit.distanceTo(target) < 7)
 
+  @inline
+  def isSafe(target: Int, safeSquares: Set[Int]) = safeSquares.contains(target)
 
-
+  def closestSafe(unit: Person, safeSquares: Set[Int]) = {
+    bfsRes(unit.unitId)._2.zipWithIndex
+      .filter(square => isSafe(square._2, safeSquares))
+      .minByOption(_._1)
+      .map(_._2)
+  }
 
 
   def convert(myLeader: Option[Person], neutral: List[Person]) = {
@@ -239,43 +255,54 @@ object Player extends App {
       case _ => None
     }
   }
-  def move(mine: List[Person], enemy: List[Person]) = {
-    val cartesian = for (my <- mine; their <- enemy) yield {
-      val distance = my.distanceTo(their)
-      val stronger = my.hp >= their.hp
-      (my, their, distance, stronger)
-    }
-    val closestWeaker = cartesian.filter(_._4)
-    if (closestWeaker.isEmpty) None else {
-      val closest = closestWeaker.minBy(_._3)
-      Some(s"${closest._1.unitId} MOVE ${closest._2.x} ${closest._2.y}")
+  def move(mine: List[Person], enemy: List[Person], bfsMap: BfsMap, safeSquares: Set[Int]) = {
+    val underAttack = mine.filterNot(warrior => isSafe(warrior.asNumber, safeSquares))
+    val mostDamaged = underAttack.minByOption(_.hp)
+
+    mostDamaged.flatMap(warrior => {
+      closestSafe(warrior, safeSquares).map(safeSquare => {
+        val (x,y) = toMatrix(safeSquare)
+        s"${warrior.unitId} MOVE $x $y"
+      })
+    }).orElse {
+      val cartesian = for (my <- mine; their <- enemy) yield {
+        val distance = my.distanceBfs(their, bfsMap)
+        val stronger = my.hp >= their.hp
+        (my, their, distance, stronger)
+      }
+      val closestWeaker = cartesian.filter(pair => pair._3.isDefined && pair._4)
+      if (closestWeaker.isEmpty) None else {
+        val closest = closestWeaker.minBy(_._3)
+        Some(s"${closest._1.unitId} MOVE ${closest._2.x} ${closest._2.y}")
+      }
     }
   }
-  def moveLeader(myLeader: Option[Person], neutral: List[Person], enemy: List[Person], bfs: BfsMap, unitMap: UnitMap) = {
-    def isDanger(target: Int) = enemy.exists(unit => unit.canShoot(target, unitMap))
+
+  def moveLeader(myLeader: Option[Person], neutral: List[Person], enemy: List[Person], bfs: BfsMap, unitMap: UnitMap, safeSquares: Set[Int]) = {
     myLeader match {
       case Some(leader) =>
-        val leadBfs = bfs(0)
-        val isSafeNow = !isDanger(leader.asNumber)
-        val safeForMove = leader.freeSquaresAsNum(unitMap).filterNot(square => isDanger(square))
-        val safeNeutral = neutral.filter(unit => leadBfs.contains(unit.unitId) && safeForMove.contains(leadBfs(unit.unitId)._1))
+        val leadBfs = bfs(leader.unitId)
+        val isSafeNow = isSafe(leader.asNumber, safeSquares)
+        val safeForMove = leader.freeSquaresAsNum(unitMap).filter(square => isSafe(square, safeSquares))
+        val safeNeutral = neutral.filter(unit => leadBfs.contains(unit.unitId) && safeForMove.contains(leadBfs(unit.unitId).head))
+        val closestAnyNeutral = neutral.minByOption(unit => if (leadBfs.contains(unit.unitId)) leadBfs(unit.unitId).length else Int.MaxValue)
 
-        if (safeNeutral.isEmpty && isSafeNow) None
+        if (closestAnyNeutral.isDefined && leadBfs.contains(closestAnyNeutral.get.unitId) && leadBfs(closestAnyNeutral.get.unitId).length < 3) Some {
+          val (x,y) = toMatrix(leadBfs(closestAnyNeutral.get.unitId).head)
+          s"${leader.unitId} MOVE $x $y"
+        } else if (safeNeutral.isEmpty && isSafeNow) None
         else if (safeNeutral.nonEmpty) {
-          val closestNeutral = safeNeutral.minBy(neutral => leadBfs(neutral.unitId)._2)
-          if (leadBfs(closestNeutral.unitId)._2 > 7) None
+          val closestNeutral = safeNeutral.minBy(neutral => leadBfs(neutral.unitId).length)
+          if (leadBfs(closestNeutral.unitId).length > 7) None
           else Some {
-            val (x, y) = toMatrix(leadBfs(closestNeutral.unitId)._1)
+            val (x, y) = toMatrix(leadBfs(closestNeutral.unitId).head)
             s"${leader.unitId} MOVE $x $y"
           }
         } else {
-          bfsRes(leader.unitId)._2.zipWithIndex
-            .filter(square => !isDanger(square._2))
-            .minByOption(_._1)
-            .map(square => {
-              val (x,y) = toMatrix(square._2)
-              s"${leader.unitId} MOVE $x $y"
-            })
+          closestSafe(leader, safeSquares).map(square => {
+            val (x,y) = toMatrix(square)
+            s"${leader.unitId} MOVE $x $y"
+          })
         }
       case _ => None
     }
@@ -287,18 +314,17 @@ object Player extends App {
       val reachable = my.canShoot(their.asNumber, unitMap)
       (my, their, distance, reachable)
     }
-    val closestReachable = cartesian.filter(_._4)
+    val closestReachable = cartesian.filter(data => data._4 && data._3 < 7)
     if (closestReachable.isEmpty) None else {
-      val closest = closestReachable.minBy(_._3)
-      if (closest._3 < 7) Some(s"${closest._1.unitId} SHOOT ${closest._2.unitId}")
-      else None
+      val (me, enemy, _, _) = closestReachable.minBy(data => data._2.hp / (7 - data._3))
+      Some(s"${me.unitId} SHOOT ${enemy.unitId}")
     }
   }
 
   // game loop
   while(true) {
     val numOfUnits = readLine.toInt // The total number of units on the board
-    Console.err.println(s"$numOfUnits")
+    // Console.err.println(s"$numOfUnits")
     bfsRes.clear
 
     units = (for(_ <- 0 until numOfUnits) yield {
@@ -309,7 +335,7 @@ object Player extends App {
       // y: Y coordinate of the unit
       // owner: id of owner player
       val Array(unitId, unitType, hp, x, y, owner) = (readLine split " ").withFilter(_ != "").map (_.toInt)
-      Console.err.println(s"$unitId $unitType $hp $x $y $owner")
+      // Console.err.println(s"$unitId $unitType $hp $x $y $owner")
       Person(unitId, unitType == 1, hp, x, y, owner)
     }).toList
 
@@ -318,18 +344,27 @@ object Player extends App {
     val personByOwners = units.groupBy(_.owner)
     val mine = personByOwners(myId)
     val enemy = personByOwners(1 - myId)
+    val (enemyLeaderList, enemyWithoutLeader) = enemy.partition(_.isLeader)
+    val enemyLeader = enemyLeaderList.headOption
     val neutral = personByOwners.getOrElse(2, List.empty)
     val (myLeaderList, mineWithoutLeader) = mine.partition(_.isLeader)
     val myLeader = myLeaderList.headOption
-    val enemyLeader = enemy.find(_.isLeader)
 
-    val allBfs = bfsMap(mine, enemy ++ neutral, unitMap)
-    //    Console.err.println(s"$allBfs")
+    val (_, safeSquares) = matrix.indices.toSet.partition(square => isDanger(enemyWithoutLeader, square, unitMap))
+
+
+    val allBfs = bfsMap(mine, enemy ++ neutral, unitMap, _ => true)
+    //    val safeBfs = bfsMap(myLeaderList, neutral, unitMap, safeSquares.contains)
+
+    //    Console.err.println(s"danger: ${dangerSquares.map(toMatrix).mkString(", ")}")
+    //    Console.err.println(s"safe: ${safeSquares.map(toMatrix).mkString(", ")}")
+
+    val safeLeader = myLeader.exists(leader => isSafe(leader.asNumber, safeSquares))
 
     val action = convert(myLeader, neutral)
-      .orElse(moveLeader(myLeader, neutral, enemy, allBfs, unitMap))
-      .orElse(shoot(mineWithoutLeader, enemy, unitMap))
-      .orElse(move(mine, enemy))
+      .orElse(if (safeLeader) shoot(mineWithoutLeader, enemy, unitMap) else moveLeader(myLeader, neutral, enemy, allBfs, unitMap, safeSquares))
+      .orElse(if (safeLeader) moveLeader(myLeader, neutral, enemy, allBfs, unitMap, safeSquares) else shoot(mineWithoutLeader, enemy, unitMap))
+      .orElse(move(mineWithoutLeader, enemy, allBfs, safeSquares))
       .getOrElse("WAIT")
 
     // WAIT | unitId MOVE x y | unitId SHOOT target| unitId CONVERT target
