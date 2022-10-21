@@ -1,6 +1,6 @@
 package codingame
 
-import codingames.hard.voxcodei.Player
+import codingames.challenge.cultist.Player
 import org.scalatest.flatspec.AnyFlatSpec
 
 class PlayerTest extends AnyFlatSpec {
