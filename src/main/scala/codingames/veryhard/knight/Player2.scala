@@ -7,55 +7,43 @@ import scala.reflect.ClassTag
 
 object Player2 extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/knight/lot-of-jumps.txt"
-  val bufferedSource = Source.fromFile(filename)
-  val data = bufferedSource.getLines
-  def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
-  def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
-//----------------------------------------------------------------------------------------------------------------------
-  type Point = (Int, Int)
-  type Matrix[T] = Array[T]
+ val filename = "resources/knight/lot-of-jumps.txt"
+//   val filename = "resources/knight/lesser-jumps.txt"
+//   val filename = "resources/knight/tower.txt"
+//   val filename = "resources/knight/lot-of-windows.txt"
+//  val bufferedSource = Source.fromFile(filename)
+//  val data = bufferedSource.getLines
+//  def readInt = if (data.hasNext) data.next.toInt else {System.exit(0); -1}
+//  def readLine = if (data.hasNext) data.next else {System.exit(0); ""}
+// ----------------------------------------------------------------------------------------------------------------------
 
-  var euclideanCounter = 0
+  val UNKNOWN = 0
+  val SAME = 1
+  val WARMER = 2
+  val COLDER = 3
+
+  val bombDirectionMap = Map("UNKNOWN" -> UNKNOWN, "SAME" -> SAME, "WARMER" -> WARMER, "COLDER" -> COLDER)
+  val bombDirectionArr = Array("UNKNOWN", "SAME", "WARMER", "COLDER")                                                   // FIXME: only for print
   val Array(w, h) = for (i <- readLine split " ") yield i.toInt
-  Console.err.println(s"$w $h")
-  val n = readInt // maximum number of turns before game over.
-  Console.err.println(n)
+  val n = readInt
   val Array(x0, y0) = for (i <- readLine split " ") yield i.toInt
-  Console.err.println(s"${x0} ${y0}")
-
+  var bombDirection = bombDirectionMap("UNKNOWN")
   val size = w * h
+
   val dimension = (w, h)
+  var prevX = -1
+  var prevY = -1
   var x = x0
   var y = y0
-  var cutMatrix = Array.fill[Boolean](w * h)(true)
+  var cutMatrix = Array.fill[Boolean](size)(true)
   cutMatrix((x, y)) = false
 
-  val FloatMapFunction = (unit: (Float, Float)) => unit._1 - unit._2
-  val booleanMapFunction = (unit: (Boolean, Boolean)) => unit._1 && unit._2
-
-  def ~=(x: Float, y: Float, precision: Float) = (x - y).abs < precision
   def toMatrix(number: Int): (Int, Int) = (number % w, number / w)
   implicit def toNumber(point: (Int, Int)): Int = point._2 * w + point._1 % w
-  def calculateDistance(fromX: Int, fromY: Int) = (for (y <- 0 until h; x <- 0 until w) yield euclidean((fromX, fromY), (x, y))).toArray
-  def euclidean(a: Point, b: Point): Float = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2)).toFloat
-  def distance(from: Point, dimension: Point) = (for (j <- 0 until dimension._2; i <- 0 until dimension._1) yield euclidean(from, (i, j))).toArray
-  def delta[T:ClassTag](matrix1: Array[T], matrix2: Array[T], mapFunction: ((T, T)) => T) = matrix1 zip matrix2 map mapFunction
-  def cut(resMatrix: Array[Float], cutMatrix: Array[Boolean], bombdir: String,
-          bmp: ((Boolean, Boolean)) => Boolean) = {
-    val newCut = resMatrix.map { bombdir match {
-      case "SAME" => ~=(_, 0, 0.001f)
-      case "COLDER" => _ < 0
-      case "WARMER" => _ > 0
-    }
-    }
-    delta[Boolean](cutMatrix, newCut, bmp)
-  }
+  def ~=(x: Float, y: Float, precision: Float) = (x - y).abs < precision
+  def delta(newMatrix: Array[Boolean]) = (for (i <- cutMatrix.indices) yield cutMatrix(i) && newMatrix(i)).toArray
 
-  var distanceMatrix = calculateDistance(x0, y0)
-  var prevMatrix = distanceMatrix
-
-  def printMatrix[T](dimension: Point, matrix: Array[T]) = {
+  def printMatrix[T](dimension: (Int, Int), matrix: Array[T]) = {
     for (j <- 0 until dimension._2;i <- 0 until dimension._1) {
       Console.err.print(s"${if (i == 0) "\n" else ""}")
       matrix(toNumber((i, j))) match {
@@ -64,6 +52,21 @@ object Player2 extends App {
       }
     }
     Console.err.println
+  }
+
+  def newCutMatrix = {
+    val k = cornerFactor(x, y, prevX, prevY)
+    Console.err.println(s"calculate corner: $x, $y, $prevX, $prevY")
+
+    if (bombDirection != UNKNOWN) {
+      val correctlyFunction = getCorrectlyFunction(bombDirection, k)
+      val b = getB(x, y, prevX, prevY, k)
+      Console.err.println(s"Cut increment=$b")
+      (for (index <- 0 until size) yield {
+        val (_x, _y) = toMatrix(index)
+        correctlyFunction(_y, _x, k, b)
+      }).toArray
+    } else Array.empty[Boolean]
   }
 
   def findPoint(uncheckedPoint: Array[Int], cutMatrix: Array[Boolean]): (Int, Int) = {
@@ -102,23 +105,17 @@ object Player2 extends App {
   }
 
   def firstMove(x: Int, y: Int) = {
-    val halfSize = size / 2
-    val indexCandidate = toMatrix(halfSize)
-    if (indexCandidate == (x, y)) (indexCandidate._1 - 1, indexCandidate._2) else indexCandidate
+    val indexCandidate = (w / 2, h / 2)
+    if (indexCandidate == (x, y)) (indexCandidate._1 + 1, indexCandidate._2) else indexCandidate
   }
 
-  def nextMove(x: Int, y: Int, bombdir: String): (Int, Int) = {
-    if (bombdir == "UNKNOWN") {
+  def nextMove(bombDirection: Int): (Int, Int) = {
+    if (bombDirection == UNKNOWN) {
       val index = firstMove(x, y)
       cutMatrix(index) = false
       index
     } else {
-//      val distanceMatrix = distances(y * w + x)
-      val distanceMatrix = calculateDistance(x, y)
-      val processedMatrix = delta[Float](prevMatrix, distanceMatrix, FloatMapFunction)
-      val cutPoints = cut(processedMatrix, cutMatrix, bombdir, booleanMapFunction)
-      prevMatrix = distanceMatrix
-      cutMatrix = cutPoints
+      cutMatrix = delta(newCutMatrix)
       val uncheckedPoint = cutMatrix.zipWithIndex.withFilter(_._1).map(_._2)
       val index = findPoint(uncheckedPoint, cutMatrix)
       cutMatrix(index) = false
@@ -126,16 +123,41 @@ object Player2 extends App {
     }
   }
 
-  // game loop
-  while (true) {
-    val bombdir = readLine // Current distance to the bomb compared to previous distance (COLDER, WARMER, SAME or UNKNOWN)
+  def getB(x: Float, y: Float, prevX: Float, prevY: Float, k: Float) = halfDistance(y, prevY) - k * halfDistance(x, prevX)
+  def cornerFactor(x: Float, y: Float, prevX: Float, prevY: Float) = -1 / ((y - prevY) / (x - prevX))
+  def halfDistance(a: Float, b: Float) = Math.min(a, b) + Math.abs(a - b) / 2
+  def getCorrectlyFunction(bombDirection: Int, k: Float): (Int, Int, Float, Float) => Boolean = {
+    if (bombDirection == SAME) {
+      if (k == Float.PositiveInfinity || k == Float.NegativeInfinity) {
+        val halfX = halfDistance(x, prevX).toInt
+        (_,x,_,_) => x == halfX
+      } else {
+        (y,x,k,b) => ~=(y, k * x + b, 0.01f)
+      }
+    } else
+    if (k == Float.PositiveInfinity || k == Float.NegativeInfinity) {
+      val halfX = halfDistance(x, prevX)
+      if ((bombDirection == WARMER) == (prevX < x)) (_,x,_,_) => x > halfX
+      else (_,x,_,_) => x < halfX
+    } else if ((bombDirection == WARMER) == (prevY < y))
+      (y,x,k,b) => y > k * x + b else
+      (y,x,k,b) => y < k * x + b
+  }
 
-    Console.err.println(bombdir)
-    val (x_, y_) = nextMove(x, y, bombdir)
+  for (_ <- LazyList.from(0).takeWhile(_ < n)) {
+    bombDirection = bombDirectionMap(readLine)
+    Console.err.println(s"${bombDirectionArr(bombDirection)}")
+
+    val (x_, y_) = nextMove(bombDirection)
+    prevX = x
+    prevY = y
     x = x_
     y = y_
 
     println(s"$x $y")
-    // printMatrix(dimension, cutMatrix)
+    if (cutMatrix.nonEmpty) {
+         Console.err.println(s"NEW CUT MATRIX!!")
+         printMatrix((w, h), cutMatrix)
+       }
   }
 }
