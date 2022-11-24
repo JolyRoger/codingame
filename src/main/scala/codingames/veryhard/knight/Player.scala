@@ -8,14 +8,15 @@ import scala.util.Random
 
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
+//     val filename = "resources/knight/lot-of-windows.txt"
 //     val filename = "resources/knight/lot-of-jumps.txt"
-  //  val filename = "resources/knight/tower.txt"
-  // val filename = "resources/knight/lesser-jumps.txt"
-     val filename = "resources/knight/lot-of-windows.txt"
-   val bufferedSource = Source.fromFile(filename)
-   val data = bufferedSource.getLines
-   def readInt = if (data.hasNext) data.next.toInt else {System.exit(0); -1}
-   def readLine = if (data.hasNext) data.next else {System.exit(0); ""}
+  val filename = "resources/knight/tower.txt"
+// val filename = "resources/knight/lesser-jumps.txt"
+//    val filename = "resources/knight/more-window.txt"
+    val bufferedSource = Source.fromFile(filename)
+    val data = bufferedSource.getLines
+    def readInt = if (data.hasNext) data.next.toInt else {System.exit(0); -1}
+    def readLine = if (data.hasNext) data.next else {System.exit(0); ""}
 // ----------------------------------------------------------------------------------------------------------------------
 
   val UNKNOWN = 0
@@ -27,8 +28,11 @@ object Player extends App {
   val bombDirectionMap = Map("UNKNOWN" -> UNKNOWN, "SAME" -> SAME, "WARMER" -> WARMER, "COLDER" -> COLDER)
   val bombDirectionArr = Array("UNKNOWN", "SAME", "WARMER", "COLDER")                                                   // FIXME: only for print
   val Array(w, h) = for (i <- readLine split " ") yield i.toInt
+  Console.err.println(s"$w $h")
   val n = readInt
+  Console.err.println(s"$n")
   val Array(x0, y0) = for (i <- readLine split " ") yield i.toInt
+  Console.err.println(s"$x0 $y0")
   var bombDirection = bombDirectionMap("UNKNOWN")
 
   val dimension = (w, h)
@@ -68,11 +72,11 @@ object Player extends App {
     Console.err.println
   }
 
-  def newCutMatrix = {
+  def newCutMatrix(x: Float, y: Float, prevX: Float, prevY: Float) = {
     val k = cornerFactor(x, y, prevX, prevY)
     // Console.err.println(s"calculate corner: $x, $y, $prevX, $prevY")
     if (bombDirection != UNKNOWN) {
-      val correctlyFunction = getCorrectlyFunction(bombDirection, k)
+      val correctlyFunction = getCorrectlyFunction(x, y, prevX, prevY, bombDirection, k)
       val b = getB(x, y, prevX, prevY, k)
       // Console.err.println(s"Cut increment=$b")
       (for (index <- 0 until size) yield {
@@ -82,15 +86,34 @@ object Player extends App {
     } else Array.empty[Boolean]
   }
 
-  def findPoint(uncheckedPoint: Array[(Int, Int)], cutMatrix: Array[Boolean]): (Int, Int) = uncheckedPoint(Random.nextInt(uncheckedPoint.length))
-
-  def findPoint2(uncheckedPoint: Array[(Int, Int)], cutMatrix: Array[Boolean]): (Int, Int) = {
+  def findUnchecked(uncheckedPoint: Array[(Int, Int)]) = {
     val maxXIndex = uncheckedPoint.maxBy(_._1)._1
     val minXIndex = uncheckedPoint.minBy(_._1)._1
     val maxYIndex = uncheckedPoint.maxBy(_._2)._2
     val minYIndex = uncheckedPoint.minBy(_._2)._2
-    val mediX = minXIndex + Math.round(maxXIndex - minXIndex) / 2
-    val mediY = minYIndex + Math.round(maxYIndex - minYIndex) / 2
+    (minXIndex + Math.round(maxXIndex - minXIndex) / 2, minYIndex + Math.round(maxYIndex - minYIndex) / 2)
+  }
+
+  def findRandomPoint(uncheckedPoint: Array[(Int, Int)], cutMatrix: Array[Boolean]): (Int, Int) = uncheckedPoint(Random.nextInt(uncheckedPoint.length))
+
+  def findPoint(x: Int, y: Int, uncheckedPoint: Array[(Int, Int)], cutMatrix: Array[Boolean]): (Int, Int) = {
+    val adjacent = uncheckedPoint.filter(p => p._1 == x || p._2 == y)
+    val (mediX, mediY) = if (adjacent.isEmpty) {
+      findUnchecked(uncheckedPoint)
+    } else {
+      val maxXIndex = adjacent.maxBy(_._1)._1
+      val minXIndex = adjacent.minBy(_._1)._1
+      val maxYIndex = adjacent.maxBy(_._2)._2
+      val minYIndex = adjacent.minBy(_._2)._2
+      val deltaX = maxXIndex - minXIndex
+      val deltaY = maxYIndex - minYIndex
+      if (deltaX > 5 && deltaY > 5) {
+        (minXIndex + Math.round(deltaX) / 2, minYIndex + Math.round(deltaY) / 2)
+      } else {
+        findUnchecked(uncheckedPoint)
+      }
+    }
+    Console.err.println(s"point=($x,$y)")
     var counter = 0
     var point = (-1,-1)
 
@@ -123,15 +146,19 @@ object Player extends App {
     if (indexCandidate == (x, y)) (indexCandidate._1 + 1, indexCandidate._2) else indexCandidate
   }
 
-  def nextMove(x: Int, y: Int, bombDirection: Int): (Int, Int) = {
+  def nextMove(x: Int, y: Int, prevX: Int, prevY: Int, bombDirection: Int): (Int, Int) = {
     if (bombDirection == UNKNOWN) {
-      val index = firstMove(x, y)
+      Console.err.println(s"first point=($x,$y)")
+//      val index = firstMove(x, y)
+      val index = findPoint(x, y, cutMatrix.zipWithIndex.map(a => toMatrix(a._2)), cutMatrix)
       cutMatrix(index) = false
       index
     } else {
-      cutMatrix = delta(newCutMatrix)
+      Console.err.println(s"second point=($x,$y)")
+      val newCM = newCutMatrix(x, y, prevX, prevY)
+      cutMatrix = delta(newCM)
       val uncheckedPoint = cutMatrix.zipWithIndex.withFilter(_._1).map(a => toMatrix(a._2))
-      val index = findPoint(uncheckedPoint, cutMatrix)
+      val index = findPoint(x, y, uncheckedPoint, cutMatrix)
       cutMatrix(index) = false
       index
     }
@@ -140,7 +167,7 @@ object Player extends App {
   def getB(x: Float, y: Float, prevX: Float, prevY: Float, k: Float) = halfDistance(y, prevY) - k * halfDistance(x, prevX)
   def cornerFactor(x: Float, y: Float, prevX: Float, prevY: Float) = -1 / ((y - prevY) / (x - prevX))
   def halfDistance(a: Float, b: Float) = Math.min(a, b) + Math.abs(a - b) / 2
-  def getCorrectlyFunction(bombDirection: Int, k: Float): (Int, Int, Float, Float) => Boolean = {
+  def getCorrectlyFunction(x: Float, y: Float, prevX: Float, prevY: Float, bombDirection: Int, k: Float): (Int, Int, Float, Float) => Boolean = {
     if (bombDirection == SAME) {
       if (k == Float.PositiveInfinity || k == Float.NegativeInfinity) {
         val halfX = halfDistance(x, prevX).toInt
@@ -158,18 +185,6 @@ object Player extends App {
         (y,x,k,b) => y < k * x + b
   }
 
-  //  for (_ <- LazyList.from(0).takeWhile(_ < n)) {
-  //    bombDirection = bombDirectionMap(readLine)
-  //    Console.err.println(s"${bombDirectionArr(bombDirection)}")
-  //
-  //    val (x_, y_) = nextMove(bombDirection)
-  //    prevX = x
-  //    prevY = y
-  //    x = x_
-  //    y = y_
-  //
-  //    println(s"$x $y")
-  //  }
 
 
 
@@ -180,17 +195,21 @@ object Player extends App {
 
 
 
+  def newValCandidate(lowLimit: Int, upLimit: Int, z: Int) = {
+      val delta = upLimit - lowLimit
+      val halfDistance = Math.round(delta / 2)
+      val newHalfValue = lowLimit + halfDistance
+      if (delta < 6) newHalfValue else
+        if (z > newHalfValue) newHalfValue - halfDistance / 2 else newHalfValue + halfDistance / 2
+  }
 
-  //  val coeff = Array(1.2f, 5.0f, 2.0f)
-
-  def newVal(lowLimit: Int, upLimit: Int, toRight: Boolean, step: Int) = {
+  def newVal(lowLimit: Int, upLimit: Int, z: Int, toRight: Boolean) = {
     if (lowLimit == upLimit) lowLimit
     else {
-      var nv = -1
       var count = 0
+      var nv = newValCandidate(lowLimit, upLimit, z)
       val shouldExit: Int => Boolean = if (toRight) _ != upLimit else _ != lowLimit
       do {
-        nv = lowLimit + Math.round((upLimit - lowLimit) / /*coeff(step % 3)*/ 2)
         nv = if (toRight) nv + count else nv - count
         count += 1
       } while(visited.contains(nv) && shouldExit(nv))
@@ -201,10 +220,10 @@ object Player extends App {
   def newColderLimits(z: Int, prevz: Int, low: Int, up: Int, step: Int) = {
     val (newZ, newLowerLimit, newUpperLimit) = if (z > prevz) {
       val _upLimit = Math.min(z - ((z - prevz) / 2) - 1, up)
-      (newVal(low, _upLimit, true, step), low, _upLimit)
+      (newVal(low, _upLimit, z, true), low, _upLimit)
     } else if (z < prevz) {
       val _lowLimit = Math.max(1 + z + ((z - prevz) / 2), low)
-      (newVal(_lowLimit, up, false, step), _lowLimit, up)
+      (newVal(_lowLimit, up, z, false), _lowLimit, up)
     } else (-1, -1, -1)
     (newZ, newLowerLimit, newUpperLimit)
   }
@@ -212,10 +231,10 @@ object Player extends App {
   def newWarmerLimits(z: Int, prevz: Int, low: Int, up: Int, step: Int) = {
     val (newZ, newLowerLimit, newUpperLimit) = if (z > prevz) {
       val _lowLimit = Math.max(1 + prevz + ((z - prevz) / 2), low)
-      (newVal(_lowLimit, up, true, step), _lowLimit, up)
+      (newVal(_lowLimit, up, z, true), _lowLimit, up)
     } else if (z < prevz) {
       val _upLimit = Math.min(prevz - ((prevz - z) / 2), up)
-      (newVal(low, _upLimit, false, step), low, z - ((z - prevz) / 2))
+      (newVal(low, _upLimit, z, false), low, z - ((z - prevz) / 2))
     } else (-1, -1, -1)
     (newZ, newLowerLimit, newUpperLimit)
   }
@@ -271,12 +290,12 @@ object Player extends App {
     bombDirection = checkConditions(bombDirection)
 
     if (oldAlgorithm) {
-      val (x_, y_) = nextMove(x - xOffset, y - yOffset, bombDirection)
+      val (x_, y_) = nextMove(x - xOffset, y - yOffset, prevX - xOffset, prevY - yOffset, bombDirection)
       prevX = x
       prevY = y
-      x = x_
-      y = y_
-      println(s"${x + xOffset} ${y + yOffset}")
+      x = x_ + xOffset
+      y = y_ + yOffset
+      println(s"$x $y")
       if (cutMatrix.nonEmpty) {
         Console.err.println(s"NEW CUT MATRIX!!")
         printMatrix((xSize, ySize), cutMatrix)
