@@ -3,28 +3,22 @@ package codingames.veryhard.knight
 import math._
 import scala.io.Source
 import scala.io.StdIn._
-import scala.reflect.ClassTag
-import scala.util.Random
 
 object Player3 extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  // val filename = "resources/knight/lot-of-windows.txt"
-  //     val filename = "resources/knight/lot-of-jumps.txt"
-  //  val filename = "resources/knight/tower.txt"
-  // val filename = "resources/knight/lesser-jumps.txt"
-  //    val filename = "resources/knight/more-window.txt"
   val filename = "resources/knight/lesser-jumps.txt"
   val bufferedSource = Source.fromFile(filename)
   val data = bufferedSource.getLines
   def readInt = if (data.hasNext) data.next.toInt else {System.exit(0); -1}
   def readLine = if (data.hasNext) data.next else {System.exit(0); ""}
 // ----------------------------------------------------------------------------------------------------------------------
+  type Correct = (Int, Int) => Boolean
+  type GetYType = (Boolean, Boolean)
+  type GetValue = () => Int
+  type GetRanges = () => (Range, Range)
   val Array(w, h) = for (i <- readLine split " ") yield i.toInt
-  Console.err.println(s"$w $h")
   val n = readInt
-  Console.err.println(s"$n")
   val Array(x_, y_) = for (i <- readLine split " ") yield i.toInt
-  Console.err.println(s"$x_ $y_")
 
   var x = x_
   var y = y_
@@ -32,84 +26,67 @@ object Player3 extends App {
   var y0 = y
   var xs = 0 until w
   var ys = 0 until h
-
-  def narrow(x0: Int, y0: Int, x: Int, y: Int, xs: Range, ys: Range, info: String) = {
-    Console.err.println(s"narrow : x0=$x0, y0=$y0, x=$x, y=$y, info=$info")
-    val newXs = if (xs.length != 1) {
-      if (info == "SAME") {
-        val seq = xs.filter(i => abs(x0 - i) == abs(x - i))  // [i for i in xs if abs(x0-i) == abs(x-i)]
-        seq.head to seq.last
-      } else if (info == "WARMER") {
-        val seq = xs.filter(i => abs(x0 - i) > abs(x - i))  // [i for i in xs if abs(x0-i) == abs(x-i)]
-        seq.head to seq.last
-      } else if (info == "COLDER") {
-        val seq = xs.filter(i => abs(x0 - i) < abs(x - i))  // [i for i in xs if abs(x0-i) == abs(x-i)]
-        seq.head to seq.last
-      } else xs
-    } else xs
-
-    val newYs = if (ys.length != 1 && xs.length == 1) {
-      if (info == "SAME") {
-        val seq = ys.filter(i => abs(y0 - i) == abs(y - i))  // [i for i in xs if abs(x0-i) == abs(x-i)]
-        seq.head to seq.last
-      } else if (info == "WARMER") {
-        val seq = ys.filter(i => abs(y0 - i) > abs(y - i))  // [i for i in xs if abs(x0-i) == abs(x-i)]
-        seq.head to seq.last
-      } else if (info == "COLDER") {
-        val seq = ys.filter(i => abs(y0 - i) < abs(y - i))  // [i for i in xs if abs(x0-i) == abs(x-i)]
-        seq.head to seq.last
-      } else ys
-    } else ys
-
-    Console.err.println(s"$newXs")
-    Console.err.println(s"$newYs")
-
-    (newXs, newYs)
+  var bombDirection: String = _
+  val eq:   Correct = (a, b) => a == b
+  val less: Correct = (a, b) => a < b
+  val more: Correct = (a, b) => a > b
+  val all:  Correct = (_, _) => true
+  val justY: GetValue = () => y
+  val xsUpdated: GetRanges = () => (correctRange(xs, x0, x), ys)
+  val ysUpdated: GetRanges = () => (xs, correctRange(ys, y0, y))
+  val rangeXHead: GetValue = () => xs.head
+  val rangeYHead: GetValue = () => ys.head
+  val minimaxY: GetValue = () => minimax(newCoord(ys, y0, h), h)
+  val minimaxX: GetValue = () => {
+    val xx = newCoord(xs, x0, w)
+    minimax(if (xx == x) xx + 1 else xx, w)
   }
 
+  val correctFunction: Map[String, Correct]  = Map("SAME" -> eq, "WARMER" -> more, "COLDER" -> less)
+  val getRangesFunction: Map[Boolean, GetRanges]  = Map(true -> ysUpdated, false -> xsUpdated)
+  val getXFunction: Map[Boolean, GetValue]  = Map(true -> rangeXHead, false -> minimaxX)
+  val getYFunction: Map[GetYType, GetValue]  = Map(
+    (true, true) -> rangeYHead,
+    (true, false) -> minimaxY,
+    (false, true) -> justY,
+    (false, false) -> justY)
+
+  def minimax(point: Int, size: Int) = min(max(point, 0), size - 1)
+
+  def correctRange(range: Range, prev: Int, current: Int) = {
+    val seq = range.filter(i => correctFunction.getOrElse(bombDirection, all)(abs(prev - i), abs(current - i)))
+    seq.head to seq.last
+  }
+
+  def newCoord(range: Range, prev: Int, size: Int) = {    // FIXME
+    if (prev == 0 && range.length < size) {
+      (3 * range.head + range.last) / 2
+    } else if (prev == size - 1 && range.length != size) {
+      (range.head + 3 * range.last) / 2 - prev
+    } else {
+      range.head + range.last - prev
+    }
+  }
+
+  def additionalEnter(range: Range) = if (range.length == 1 && x != range.head) {
+    println(s"${range.head} $y")
+    readLine
+  } else bombDirection
 
   for (_ <- LazyList.from(0).takeWhile(_ < n)) {
-    var info = readLine
-    Console.err.println(s"$info")
-    val (xs_, ys_) = narrow(x0, y0, x, y, xs, ys, info)
+    bombDirection = readLine
+    Console.err.println(s"$bombDirection")
+    val (xs_, ys_) = getRangesFunction(xs.length == 1).apply
     xs = xs_
     ys = ys_
     x0 = x
     y0 = y
-    Console.err.println(s"x=$x y=$y")
 
-    if (xs.length > 1) {
-      val xx = if (x0 == 0 && xs.length < w) {
-        (3 * xs.head + xs.last) / 2 - x0
-      } else if (x0 == w - 1 && xs.length != w) {
-        (xs.head + 3 * xs.last) / 2 - x0
-      } else {
-        xs.head + xs.last - x0
-      }
-      x = if (xx == x) xx + 1 else xx
-      x = min(max(x, 0), w-1)
-    } else {
-      if (x != xs.head) {
-        x0 = xs.head
-        x = x0
-        println(s"$x $y")
-        info = readLine
-        Console.err.println(s"another info $info")
-      }
-      //     finishing
-      if (ys.length == 1) {
-        y = ys.head
-      } else {
-        if (y0 == 0 && ys.length != h) {
-          y = (3 * ys.head + ys.last) / 2 - y0
-        } else if (y0 == h - 1 && ys.length != h) {
-          y = (ys.head + 3 * ys.last) / 2 - y0
-        } else {
-          y = ys.head + ys.last - y0
-        }
-        y = min(max(y, 0), h-1)
-      }
-    }
+    bombDirection = additionalEnter(xs)
+
+    x = getXFunction(xs.length == 1).apply
+    y = getYFunction((xs.length == 1, ys.length == 1)).apply
+
     println(s"$x $y")
   }
 }
