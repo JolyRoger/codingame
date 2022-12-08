@@ -4,27 +4,6 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.io.StdIn.readLine
 
-class Accumulator[T] {
-  var listAccu: List[List[T]] = Nil
-  var mapAccu: mutable.Map[List[T], List[Int]] = new mutable.HashMap[List[T], List[Int]]()
-  var counter = 0
-  def clear(): Unit = {
-    listAccu = Nil
-    mapAccu.clear()
-    counter = 0
-  }
-  def push(listElem: List[T]): Unit = {
-    listAccu = listElem :: listAccu
-    val mapElem = mapAccu.getOrElse(listElem, Nil)
-    mapAccu.put(listElem, counter :: mapElem)
-    counter += 1
-  }
-  def getSize() = counter
-  def getSizeDistinct() = mapAccu.size
-  def getSize(listElem: List[T]) = mapAccu.getOrElse(listElem, Nil).length
-  def getIndexFirst(listElem: List[T]) = mapAccu.getOrElse(listElem, List(-1)).head
-}
-
 object Solution extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
    val filename = "resources/entrycode/1.txt"
@@ -36,25 +15,25 @@ object Solution extends App {
   type ValMap = mutable.Map[String, mutable.Set[String]]
   val digNum = readLine.toInt
   val entryLength = readLine.toInt
+  var removed = ""
+  val range = 0 until digNum
+  var targetList = List.empty[List[Int]]
+  lazy val combinations = mutable.Set() ++ targetList.map(_.mkString).toSet
+  var sequence = (for (_ <- 0 until entryLength) yield "0").mkString.init
+
   Console.err.println(s"$digNum $entryLength")
 
-  val range = 0 until digNum
+  def notEmpty(seqMap: ValMap) = seqMap.values.exists(_.nonEmpty)
 
-  def repeatingPerm[T](elems: List[T], genSize: Int, f: List[T] => Unit): Unit = {
-    def repeatingPermRec(elems: List[T], depth: Int, partResult: List[T]): Unit = depth match {
-        case 0 => f(List())
-        case 1 => for (elem <- elems) f(elem :: partResult)
-        case n => for (elem <- elems) repeatingPermRec(elems, n - 1, elem :: partResult)
-    }
-    if (genSize < 0) throw new IllegalArgumentException("Negative lengths not allowed in repeatingPerm...")
-    repeatingPermRec(elems, genSize, Nil)
+  def push(entryList: List[Int]) {
+    targetList ::= entryList
   }
 
-  val accumulator = new Accumulator[Int]
-  repeatingPerm(range.toList, entryLength, accumulator.push)
-  val combinations = mutable.Set() ++ accumulator.listAccu.map(_.mkString).toSet
-
-  var sequence = (for (_ <- 0 until entryLength) yield "0").mkString.init
+  def repeatingPermutations(elements: List[Int], depth: Int, partResult: List[Int], f: List[Int] => Unit): Unit = depth match {
+      case 0 => f(Nil)
+      case 1 => for (element <- elements) f(element :: partResult)
+      case n => for (element <- elements) repeatingPermutations(elements, n - 1, element :: partResult, f)
+  }
 
   def mapKey(sequence: String, entryLength: Int) = sequence.substring(sequence.length - entryLength + 1, sequence.length)
 
@@ -66,32 +45,22 @@ object Solution extends App {
     toRemove
   }
 
-//  Console.err.println(s"$sequence")
-//  Console.err.println(s"$combinations")
+  repeatingPermutations(range.toList, entryLength, Nil, push)
 
-  def notEmpty(seqMap: ValMap) = seqMap.values.exists(_.nonEmpty)
-
-  var index = 1
-  var removed = ""
   do {
-    val mm = mutable.Map() ++ combinations.groupBy(str => str.init)
+    val dataMap = mutable.Map() ++ combinations.groupBy(_.init)
     combinations.clear
-//    Console.err.println(s"$mm")
-
-    while (notEmpty(mm)) {
-      val read = mapKey(sequence, entryLength)
-      val unreadValues = mm(read)
-      if (unreadValues.nonEmpty) {
-        val minValue = unreadValues.min
-        val lastSym = minValue.last
-        removed = removeVal(minValue, mm)
-        sequence = sequence + lastSym
+    while (notEmpty(dataMap)) {
+      val unreadValues = dataMap(mapKey(sequence, entryLength))
+      sequence = if (unreadValues.nonEmpty) {
+        removed = removeVal(unreadValues.min, dataMap)
+        sequence + removed.last
       } else {
-        sequence = sequence.init
         combinations.add(removed)
+        sequence.init
       }
     }
   } while(combinations.nonEmpty)
-//  Console.err.println(s"seq: $sequence")
+
   println(s"$sequence")
 }
