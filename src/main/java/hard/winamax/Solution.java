@@ -9,7 +9,7 @@ import static java.lang.Math.min;
 
 public class Solution {
 
-    private static File f = new File("resources/winamax/test21.txt");
+    private static File f = new File("resources/winamax/test4.txt");
 
     private static final int EMPTY = 0;
     private static final int WATER = -1;
@@ -82,6 +82,40 @@ public class Solution {
             return Objects.hash(x, y);
         }
     }
+    static class Path {
+        Path(int to, List<Move> moves) {
+            this.to = to;
+            this.moves = moves;
+        }
+        private final List<Move> moves;
+        private final int to;
+    }
+    static class Ball {
+        Ball(int pos, int shots) {
+            this.shots = shots;
+            this.pos = pos;
+        }
+        private final int shots;
+        private final int pos;
+        Map<Integer, Path> paths = new TreeMap<>();
+
+        public String stringPath() {
+            StringBuilder builder = new StringBuilder("BALL-" + pos + "/" + shots + "(pos/shots)" + "\n");
+            if (paths.isEmpty()) {
+                builder.append("NO PATHS FOUND!");
+            }
+            int index = 0;
+            for (Map.Entry<Integer, Path> entry : paths.entrySet()) {
+                Path path = entry.getValue();
+                builder.append("PATH-" + index + "\t(target=" + entry.getKey() + "):\n");
+                for (Move move : path.moves) {
+                    builder.append("\t" + move.toString() + "\n");
+                }
+                index++;
+            }
+            return builder.toString();
+        }
+    }
     static class State {
         State(int[] newState) {
             this.matrix = newState;
@@ -90,6 +124,13 @@ public class Solution {
 
         public List<Move> getPossibleMoves() {
             return findMoves(this);
+        }
+        public State applyPath(Path path) {
+            State newState = this;
+            for (Move move : path.moves) {
+                newState = newState.doMove(move);
+            }
+            return newState;
         }
         public State doMove(Move move) {
             List<Integer> path = move.getPath();
@@ -152,14 +193,19 @@ public class Solution {
         }
     }
     static class Move {
-        Move(int from, int to, State state) {
+        Move(int from, int to, State state, boolean inHole, Move prevMove) {
             this.from = from;
             this.to = to;
             this.state = state;
+            this.inHole = inHole;
+            this.prevMove = prevMove;
         }
         final int from;
         final int to;
         final State state;
+        final boolean inHole;
+        final Move prevMove;
+
         public List<Integer> getPath() {
             List<Integer> points = new ArrayList<>();
             int fromX = toX(from);
@@ -208,8 +254,9 @@ public class Solution {
         return matrix[point] != EMPTY && matrix[point] != WATER;
     }
 
-    private static boolean canStop(int[] matrix, int point) {
-        return matrix[point] == EMPTY || matrix[point] == HOLE;
+    private static int canStop(int[] matrix, int point) {
+        return matrix[point] == HOLE ? 2 :
+               matrix[point] == EMPTY ? 1 : 0;
     }
 
     private static List<Move> findMoves(State state) {
@@ -217,18 +264,19 @@ public class Solution {
         List<Move> moves = new ArrayList<>();
         for (int i = 0; i < matrix.length; i++) {
             if (matrix[i] > 0) {
-                moves.addAll(findMoves(state, i, matrix[i]));
+                moves.addAll(findMoves(state, i, matrix[i], null));
             }
         }
         return moves;
     }
 
-    private static List<Move> findMoves(State state, int p, int shots) {
+    private static List<Move> findMoves(State state, int p, int shots, Move prevMove) {
+        if (shots == 0 || state.matrix[p] <= 0) return List.of();
         int[] matrix = state.matrix;
         int px = toX(p);
         int py = toY(p);
 
-        if (matrix[p] <= 0) throw new IllegalArgumentException("Wrong point! <" + px + "," + py + ">");
+//        if (matrix[p] <= 0) throw new IllegalArgumentException("Wrong point! <" + px + "," + py + ">");
         List<Move> moves = new ArrayList<>(4);
         if (px >= shots) {
             boolean correctly = true;
@@ -239,8 +287,9 @@ public class Solution {
                     break;
                 }
             }
-            if (correctly && canStop(matrix, target)) {
-                moves.add(new Move(p, target, state));
+            int stopped = canStop(matrix, target);
+            if (correctly && stopped > 0) {
+                moves.add(new Move(p, target, state, stopped == 2, prevMove));
             }
         }
         if (px < width - shots) {
@@ -253,21 +302,23 @@ public class Solution {
                     break;
                 }
             }
-            if (correctly && canStop(matrix, target)) {
-                moves.add(new Move(p, target, state));
+            int stopped = canStop(matrix, target);
+            if (correctly && stopped > 0) {
+                moves.add(new Move(p, target, state, stopped == 2, prevMove));
             }
         }
         if (py >= shots) {
             boolean correctly = true;
-            int target = toNumber(px + shots, py);
+            int target = toNumber(px, py - shots);
             for (int i = py - 1; i > py - shots; i--) {
                 if (cannotRoll(matrix, toNumber(px, i))) {
                     correctly = false;
                     break;
                 }
             }
-            if (correctly && canStop(matrix, target)) {
-                moves.add(new Move(p, target, state));
+            int stopped = canStop(matrix, target);
+            if (correctly && stopped > 0) {
+                moves.add(new Move(p, target, state, stopped == 2, prevMove));
             }
         }
         if (py < height - shots) {
@@ -279,8 +330,9 @@ public class Solution {
                     break;
                 }
             }
-            if (correctly && canStop(matrix, target)) {
-                moves.add(new Move(p, target, state));
+            int stopped = canStop(matrix, target);
+            if (correctly && stopped > 0) {
+                moves.add(new Move(p, target, state, stopped == 2, prevMove));
             }
         }
 
@@ -321,33 +373,69 @@ public class Solution {
         Deque<State> stack = new ArrayDeque<>();
         stack.add(init);
 
-        done : while (!stack.isEmpty()) {
-            State state = stack.poll();
-            List<Move> moves = new ArrayList<>();
-//            if (stateSet.contains(stateHash)) {
-//                if (stateHash == -810986749) {
-//                    System.err.println("Contains hash " + stateHash + " " + state.sum());
-//                    System.err.println(state);
-//                }
-//            } else {
-//            if (stateHash == -810986749) {
-//                System.err.println("Does not contain hash " + stateHash + " " + state.sum());
-//                System.err.println(state);
-//            }
-            moves = state.getPossibleMoves();
-//            }
-            for (Move move : moves) {
-                State newState = move.state.doMove(move);
-                int stateHash = newState.hashCode();
-                if (!stateSet.contains(stateHash)) {
-                    stack.push(newState);
-                    if (newState.found(ballCount)) {
-                        printTarget(newState.matrix, width, height);
-                        break done;
+        List<Ball> balls = new ArrayList<>();
+        for (int i = 0; i < init.matrix.length; i++) {
+            if (init.matrix[i] > 0) balls.add(new Ball(i, init.matrix[i]));
+        }
+
+        for (Ball ball : balls) {
+            Deque<Move> moves = new ArrayDeque<>(findMoves(init, ball.pos, ball.shots, null));
+            while (!moves.isEmpty()) {
+                Move move = moves.poll();
+                if (move.inHole) {
+                    Deque<Move> path = new ArrayDeque<>();
+                    Move currentMove = move;
+                    while (currentMove != null) {
+                        path.push(currentMove);
+                        currentMove = currentMove.prevMove;
                     }
-                    stateSet.add(stateHash);
+                    ball.paths.put(move.to, new Path(move.to, new ArrayList<>(path)));
+                } else {
+                    List<Integer> path = move.getPath();
+                    int last = path.get(path.size() - 1);
+                    State newState = move.state.doMove(move);
+                    int newShots = newState.matrix[last];
+                    List<Move> newMoves = findMoves(newState, last, newShots, move);
+                    for (Move newMove : newMoves) {
+                        moves.push(newMove);
+                    }
                 }
             }
         }
+
+        balls.sort(Comparator.comparingInt(b -> b.paths.size()));
+
+        System.err.println();
+        State currentState = init;
+        for (Ball ball : balls) {
+            System.err.println(ball.stringPath());
+            if (ball.paths.size() == 1) {
+                for (Path path : ball.paths.values()) {
+                    currentState = currentState.applyPath(path);
+                    for (Ball ball_ : balls) {
+                        ball_.paths.remove(path.to);
+                    }
+                }
+            }
+        }
+        System.err.println();
+        printTarget(currentState.matrix, width, height);
+//        done : while (!stack.isEmpty()) {
+//            State state = stack.poll();
+//            List<Move> moves = new ArrayList<>();
+//            moves = state.getPossibleMoves();
+//            for (Move move : moves) {
+//                State newState = move.state.doMove(move);
+//                int stateHash = newState.hashCode();
+//                if (!stateSet.contains(stateHash)) {
+//                    stack.push(newState);
+//                    if (newState.found(ballCount)) {
+//                        printTarget(newState.matrix, width, height);
+//                        break done;
+//                    }
+//                    stateSet.add(stateHash);
+//                }
+//            }
+//        }
     }
 }
