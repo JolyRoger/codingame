@@ -51,7 +51,6 @@ object Player extends App {
         xy._2 >= 0 &&
         xy._2 < height &&
         tiles(num).scrapAmount > 0 &&
-//        !unitsIndices.contains(toNumber(xy)) &&
         available(toNumber(xy))
     }
 
@@ -62,7 +61,7 @@ object Player extends App {
     res
   }
 
-  def closestTile(pos: Int, tiles: Array[Tile], available: Reachable, found: Reachable): Int = {
+  def closestTileDist(pos: Int, tiles: Array[Tile], available: Reachable, found: Reachable): Int = {
     val dimension = width * height
     val marked: Array[Boolean] = new Array[Boolean](dimension)
     val distTo = Array.fill[Int](dimension)(Int.MaxValue)
@@ -91,10 +90,9 @@ object Player extends App {
     dist
   }
 
-  def bfs(pos: Int, tiles: Array[Tile], /*unitIndices: Set[Int], */available: Reachable): BfsResult = {
+  def bfs(pos: Int, tiles: Array[Tile], available: Reachable): Array[Int] = {
     val dimension = width * height
     val marked: Array[Boolean] = new Array[Boolean](dimension)
-    val edgeTo = Array.fill[Int](dimension)(Int.MaxValue)
     val distTo = Array.fill[Int](dimension)(Int.MaxValue)
     val stack = mutable.Queue[Int]()
 
@@ -107,21 +105,20 @@ object Player extends App {
         w => {
           stack.enqueue(w)
           marked(w) = true
-          edgeTo(w) = v
           distTo(w) = distTo(v) + 1
         }
       }
     }
-    (edgeTo, distTo)
+    distTo
   }
 
 
 
   def calcDistancesMap(myRobots: List[Robot], tiles: Array[Tile], bfsResMap: Map[Int, (Array[Int], Array[Int])]) = ???
 
-  def calcBfsMap(mine: List[Robot], tiles: Array[Tile], bfsResMap: Map[Int, BfsResult]) = {
+  def calcBfsMap(mine: List[Robot], tiles: Array[Tile], bfsResMap: Map[Int, Array[Int]]) = {
     def beginJourney(robotId: Int, to: Int) = {
-      val (edges, distances) = bfsResMap(robotId)
+      val distances = bfsResMap(robotId)
       distances(to)
     }
     def toTile(robot: Robot) = {
@@ -129,20 +126,19 @@ object Player extends App {
     }
 
     mine.map(me => {
-//      val bfsRes = bfsResMap(me.id)
       (me.id, toTile(me))
     }).toMap
   }
 
   def calcBfsMapOld(mine: List[Robot], tilesWithScraps: List[Tile],
-                 tiles: Array[Tile], bfsResMap: Map[Int, BfsResult],
-                 unitMap: Set[Int], available: Reachable): BfsMap = {
+                    tiles: Array[Tile], bfsResMap: Map[Int, BfsResult],
+                    unitMap: Set[Int], available: Reachable): BfsMap = {
     def bfsToUnit(bfs: BfsResult, tile: Tile): Option[Array[Int]] = {
       Some { tile.freeSquaresAsNum(unitMap, tiles)
         .withFilter(bfs._2(_) < Int.MaxValue)
         .map(neighbour => (neighbour, bfs._2(neighbour)))
       }.withFilter(_.nonEmpty)
-       .map { targets =>
+        .map { targets =>
           val target = targets.minBy(_._2)
           var i = target._1
           var index = target._2
@@ -155,8 +151,8 @@ object Player extends App {
             i = bfs._1(i)
           }
 
-         outArr
-       }
+          outArr
+        }
     }
     def bfsToUnits(myUnit: Robot, others: List[Tile], available: Reachable): Map[Int, Array[Int]] = {
       others.map(other => (other.id, bfsToUnit(bfsResMap(myUnit.id), other)))
@@ -203,23 +199,25 @@ object Player extends App {
     val robotNumber = myMatter / 10
     if (robotNumber > 0) {
       tiles.withFilter(_.canSpawn)
-           .map(tile => (tile.id, closestTile(tile.id, tiles, available(tiles, huntMode), notMine(tiles, huntMode))))
-           .minByOption(_._2)
-           .map(target => s"SPAWN $robotNumber ${toMatrixStr(target._1)}")
-           .getOrElse("")
-//      tiles.find(_.canSpawn).map(tile => s"SPAWN $robotNumber ${toMatrixStr(tile.id)}").getOrElse("")
+        .map(tile => (tile.id, tile.units, closestTileDist(tile.id, tiles, available(tiles, huntMode), notMine(tiles, huntMode))))
+        .groupBy(_._3)
+        .minByOption(_._1)
+        .flatMap(targets => targets._2.minByOption(_._2))
+        .map(target => if (target._2 == Int.MaxValue) "" else s"SPAWN $robotNumber ${toMatrixStr(target._1)}")
+        .getOrElse("")
     } else ""
   }
 
 
   def shouldBuildRecycler(huntMode: Boolean, myMatter: Int, myRecyclersAmount: Int, tiles: Array[Tile]) = {
+    // ("", myMatter)
     if (huntMode) ("", myMatter) else
-    if (myMatter >= 10 && myRecyclersAmount < 2) {
-      val recyclers = tiles.withFilter(_.canBuild).map(tile => (tile, recyclerProfit(tile.id, tiles)))
-      recyclers.maxByOption(_._2)
-               .map(recycler => (s"BUILD ${toMatrixStr(recycler._1.id)}", myMatter - 10))
-               .getOrElse(("", myMatter))
-    } else ("", myMatter)
+      if (myMatter >= 10 && myRecyclersAmount < 2) {
+        val recyclers = tiles.withFilter(_.canBuild).map(tile => (tile, recyclerProfit(tile.id, tiles)))
+        recyclers.maxByOption(_._2)
+          .map(recycler => (s"BUILD ${toMatrixStr(recycler._1.id)}", myMatter - 10))
+          .getOrElse(("", myMatter))
+      } else ("", myMatter)
   }
 
   def findClosest(huntMode: Boolean, myRobots: List[Robot], tiles: Array[Tile], bfsMap: BfsDist) = {
@@ -232,40 +230,46 @@ object Player extends App {
 
   def findClosestPairs(myRobots: List[Robot], tiles: Array[Tile], bfsMap: BfsDist, exclude: Tile => Boolean) = {
     var foundTarget = Set.empty[Int]
+    val emergencyTargetMap = mutable.Map.empty[Int, Set[Tile]]
     var busyRobot = Set.empty[Int]
     var pairs = List.empty[(Robot, Tile)]
-
-//    val withScraps = tiles.filterNot(tile => withGrassOrRecyclers(tiles)(tile.id) || mine(tiles)((tile.id, -1)))
     val targetTiles = tiles.filterNot(exclude)
     var robotScrapPairs = (for (robot <- myRobots; tile <- targetTiles) yield {
       (robot, tile)
-    }).sortBy(rt => {
-      bfsMap(rt._1.id)(rt._2.id)
-    })
+    }).sortBy(rt => bfsMap(rt._1.id)(rt._2.id))
 
     while (robotScrapPairs.nonEmpty && busyRobot.size < myRobots.length) {
       robotScrapPairs = robotScrapPairs.dropWhile(rt => busyRobot.contains(rt._1.id)/* || foundTarget.contains(rt._2.id)*/)
       robotScrapPairs.headOption match {
-        case Some(nextPair) =>
-          foundTarget += nextPair._2.id
-          busyRobot += nextPair._1.id
-          pairs = nextPair :: pairs
-          robotScrapPairs = robotScrapPairs.tail
+        case Some(headRobot) =>
+          val headRobotId = headRobot._1.id
+          val robotScrapLists = robotScrapPairs.span(_._1.id == headRobotId/* || foundTarget.contains(rt._2.id)*/)
+          robotScrapPairs = robotScrapLists._2
+          val target = robotScrapLists._1.find(rt => !foundTarget.contains(rt._2.id))
+
+          target match {
+            case Some(nextPair) =>
+              foundTarget += nextPair._2.id
+              busyRobot += nextPair._1.id
+              pairs = nextPair :: pairs
+            case None =>
+              val emergencySet = robotScrapLists._1.map(_._2).toSet ++ emergencyTargetMap.getOrElse(headRobotId, Set.empty[Tile])
+              emergencyTargetMap.put(headRobotId, emergencySet)
+          }
         case None =>
+          val unprocessed = myRobots.filterNot(robot => busyRobot.contains(robot.id))
+          unprocessed.foreach(robot => {
+            emergencyTargetMap.getOrElse(robot.id, Set.empty).headOption match {
+              case Some(target) => pairs = (robot, target) :: pairs
+            }
+          })
       }
     }
     pairs.map(rt => (s"MOVE 1 ${toMatrixStr(rt._1.pos)} ${toMatrixStr(rt._2.id)}")).mkString(";")
-
-//    val moves = (for (robot <- myRobots) yield {
-//      val (str, target) = findTarget(robot, bfsMap, huntMode, foundTarget, tiles)
-//      foundTarget += target
-//      str.trim
-//    }).mkString(";")
-//    moves
   }
 
   def alwaysTrue(pos: Int) = true
-  def notMine(tiles: Array[Tile], huntMode: Boolean)(pos: Int) = if (huntMode) withFoeUnits(tiles)(pos) else tiles(pos).owner == 0
+  def notMine(tiles: Array[Tile], huntMode: Boolean)(pos: Int) = if (huntMode) withFoeUnits(tiles)(pos) else neutralOrFoeWithoutUnits(tiles)(pos)
   def withFoeUnits(tiles: Array[Tile])(pos: Int) = tiles(pos).units > 0 && tiles(pos).owner == 0
   def withGrass(tiles: Array[Tile])(pos: Int) = tiles(pos).scrapAmount <= 0
   def withRecyclers(tiles: Array[Tile])(pos: Int) = tiles(pos).hasRecycler
@@ -274,6 +278,7 @@ object Player extends App {
   def notTheSame(robot: Robot)(posDist: (Int, Int)) = posDist._1 == robot.pos
   def mine(tiles: Array[Tile])(posDist: (Int, Int)) = tiles(posDist._1).owner == 1
   def mineOrNeutral(tiles: Array[Tile])(posDist: (Int, Int)) = tiles(posDist._1).units <= 0 || tiles(posDist._1).owner == 1
+  def neutralOrFoeWithoutUnits(tiles: Array[Tile])(pos: Int) = !withGrassOrRecyclers(tiles)(pos) && tiles(pos).units <= 0 && tiles(pos).owner != 1
   def noRepetitive(found: Set[Int])(posDist: (Int, Int)) = found.contains(posDist._1)
   def noMyScrapRepetitive(tiles: Array[Tile], found: Set[Int])(posDist: (Int, Int)) = noRepetitive(found)(posDist) || mine(tiles)(posDist)
   def foeOrNoMyScrapRepetitive(tiles: Array[Tile], found: Set[Int])(posDist: (Int, Int)) = mineOrNeutral(tiles)(posDist) || noRepetitive(found)(posDist)
@@ -287,25 +292,21 @@ object Player extends App {
 
   val size = width * height
 
-  for (_ <- LazyList.from(0).takeWhile(_ < 201)) {
+  def init(): (Array[Tile], List[Robot], List[Robot], Int, Int, Int) = {
     val tiles = Array.ofDim[Tile](size)
     var myRobots = List.empty[Robot]
     var foeRobots = List.empty[Robot]
-    var foeIndices = Set.empty[Int] // maybe change to Map...
-    var scrapList = SortedSet.empty[(Int, Int)] // position, distance
-
-    val Array(myMatter, oppMatter) = (readLine split "\\s+").map(_.toInt)
-    Console.err.println(s"$myMatter $oppMatter")
-    var myRobotIndex = 0
-    var foeRobotIndex = 0
+    var foeIndices = Set.empty[Int]
     var myRecyclersAmount = 0
     var myTiles = 0
     var foeTiles = 0
+    var myRobotIndex = 0
+    var foeRobotIndex = 0
 
     for (i <- 0 until height; j <- 0 until width) {
       val position = i * width + j
       val Array(scrapAmount, owner, units, recycler, canBuild, canSpawn, inRangeOfRecycler) = (readLine split " ").withFilter(_ != "").map(_.toInt)
-//      Console.err.println(s"$scrapAmount $owner $units $recycler $canBuild $canSpawn $inRangeOfRecycler")
+      //  Console.err.println(s"$scrapAmount $owner $units $recycler $canBuild $canSpawn $inRangeOfRecycler")
       tiles(position) = Tile(position, scrapAmount, owner, units, recycler == 1, canBuild == 1, canSpawn == 1, inRangeOfRecycler == 1)
       myRecyclersAmount = if (recycler == 1 && owner == 1) myRecyclersAmount + 1 else myRecyclersAmount
 
@@ -324,30 +325,36 @@ object Player extends App {
         }
       }
     }
+    (tiles, myRobots, foeRobots, myTiles, foeTiles, myRecyclersAmount)
+  }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  for (_ <- LazyList.from(0).takeWhile(_ < 201)) {
+    val Array(myMatter, oppMatter) = (readLine split "\\s+").map(_.toInt)
+    // Console.err.println(s"$myMatter $oppMatter")
+    val (tiles, myRobots, foeRobots, myTiles, foeTiles, myRecyclersAmount) = init()
     val huntMode = (myRobots.length > foeRobots.length) || (myRobots.length == foeRobots.length && myTiles > foeTiles)
-    Console.err.println(s"hunt=$huntMode")
-    //    val (hasRecycler, hasnotRecycler) = tiles.partition(tile => tile.hasRecycler)
-    //    val (canSpawn, cannotSpawn) = tiles.partition(tile => tile.canSpawn)
-    //    val (canBuild, cannotBuild) = tiles.partition(tile => tile.canBuild)
-    //    val (withScrap, withoutScrap) = tiles.partition(tile => tile.scrapAmount > 0 && !tile.hasRecycler)
-
-
-//    val withoutRecyclers = withScraps.filter(!_.hasRecycler).toList
-//    val withoutRecyclersData = withoutRecyclers.map(tile => (tile.id, tile.scrapAmount)).toMap
-//    val withScrapsData = withScraps.map(tile => (tile.id, tile.scrapAmount)).toMap
-
+    // Console.err.println(s"hunt=$huntMode")
     val bfsResMap = myRobots.map(robot => (robot.id, bfs(robot.pos, tiles, available(tiles, huntMode)))).toMap
     val bfsMap = calcBfsMap(myRobots, tiles, bfsResMap)
-
     val (buildRecyclers, newMatter) = shouldBuildRecycler(huntMode, myMatter, myRecyclersAmount, tiles)
     val buildRobot = shouldSpawnRobot(newMatter, tiles, huntMode)
     val moves = findClosest(huntMode, myRobots, tiles, bfsMap)
-//    val bfsMap = calcBfsMap(myRobots, withScraps, tiles, bfsResMap, foeIndices, alwaysTrue)
-//    val bfsMap = calcDistancesMap(myRobots, tiles, bfsResMap)
-//    val bfsData = bfsMap.view.mapValues(value => )
-
     val targetStr = List(buildRecyclers, buildRobot, moves).filter(_.nonEmpty).mkString(";")
-    println(targetStr)
+
+    println(if (targetStr.isEmpty) "WAIT" else targetStr)
   }
 }
