@@ -5,9 +5,7 @@ import java.io.FileNotFoundException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -16,6 +14,8 @@ import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -33,28 +33,24 @@ public class Solution {
     private static final int DISPOSED_UP = -6;
     private static final int DISPOSED_RIGHT = -7;
 
-    protected static final Map<Integer, Character> toChar = new HashMap<>();
+    protected static final Map<Integer, Character> toChar = Map.of(
+        EMPTY, '.',
+        WATER, 'X',
+        HOLE, 'H',
+        DISPOSED_HOLE, 'o',
+        DISPOSED_DOWN, 'v',
+        DISPOSED_LEFT, '<',
+        DISPOSED_RIGHT, '>',
+        DISPOSED_UP, '^'
+    );
 
-    static {
-        toChar.put(EMPTY, '.');
-        toChar.put(WATER, 'X');
-        toChar.put(HOLE, 'H');
-        toChar.put(DISPOSED_HOLE, 'o');
-        toChar.put(DISPOSED_DOWN, 'v');
-        toChar.put(DISPOSED_LEFT, '<');
-        toChar.put(DISPOSED_RIGHT, '>');
-        toChar.put(DISPOSED_UP, '^');
-    }
-
-    protected static final Map<Integer, Character> targetMap = new HashMap<>();
-
-    static {
-        targetMap.put(EMPTY, '.');
-        targetMap.put(DISPOSED_DOWN, 'v');
-        targetMap.put(DISPOSED_LEFT, '<');
-        targetMap.put(DISPOSED_RIGHT, '>');
-        targetMap.put(DISPOSED_UP, '^');
-    }
+    protected static final Map<Integer, Character> targetMap = Map.of(
+        EMPTY, '.',
+        DISPOSED_DOWN, 'v',
+        DISPOSED_LEFT, '<',
+        DISPOSED_RIGHT, '>',
+        DISPOSED_UP, '^'
+    );
 
     static int width;
     static int height;
@@ -69,12 +65,6 @@ public class Solution {
         return y * width + x % width;
     }
 
-    static class Path {
-        Path(List<Move> moves) {
-            this.moves = moves;
-        }
-        private final List<Move> moves;
-    }
     static class Ball {
         Ball(int pos, int shots) {
             this.shots = shots;
@@ -82,9 +72,9 @@ public class Solution {
         }
         private final int shots;
         private final int pos;
-        Map<Integer, Path> paths = new TreeMap<>();
+        Map<Integer, List<Move>> paths = new TreeMap<>();
 
-        public Node find(Set<Integer> wasted, Set<Integer> hashes, int[] selected, int ballIndex, State state) {
+        public Optional<Node> find(Set<Integer> wasted, Set<Integer> hashes, int[] selected, int ballIndex, State state) {
             int vertex;
             int attemptSelectedHash;
             State newState = null;
@@ -97,8 +87,8 @@ public class Solution {
                 attemptSelectedHash = Arrays.hashCode(attemptSelected);
             } while (it.hasNext() && (wasted.contains(vertex) || hashes.contains(attemptSelectedHash) || newState == null));
 
-            if (wasted.contains(vertex) || hashes.contains(attemptSelectedHash) || newState == null) return null;
-            else return new Node(vertex, newState);
+            if (wasted.contains(vertex) || hashes.contains(attemptSelectedHash) || newState == null) return Optional.empty();
+            else return Optional.of(new Node(vertex, newState));
         }
     }
 
@@ -117,9 +107,9 @@ public class Solution {
         }
         private final int[] matrix;
 
-        public State applyPath(Path path) {
+        public State applyPath(List<Move> path) {
             State newState = this;
-            for (Move move : path.moves) {
+            for (Move move : path) {
                 newState = newState.doMove(move);
                 if (newState == null) return null;
             }
@@ -318,45 +308,34 @@ public class Solution {
     }
 
     private static Set<Integer> allValues(int[] arr) {
-        Set<Integer> out = new HashSet<>(arr.length);
-        for (int v: arr) {
-            if (v == -1) break;
-            out.add(v);
-        }
-        return out;
+        return Arrays.stream(arr).filter(v -> v != -1).boxed().collect(Collectors.toSet());
     }
 
     public static void main(String args[]) throws FileNotFoundException {
 //        Scanner in = new Scanner(System.in);
         Scanner in = new Scanner(f);
 
-        Map<Character, Integer> stateMap = new HashMap<>(3);
-        stateMap.put('.', EMPTY);
-        stateMap.put('X', WATER);
-        stateMap.put('H', HOLE);
+        Map<Character, Integer> stateMap = Map.of('.', EMPTY, 'X', WATER, 'H', HOLE);
 
         width = in.nextInt();
         height = in.nextInt();
-        int size = height * width;
-        int[] stateMatrix = new int[size];
+
+        int[] stateMatrix = IntStream.range(0, height).flatMap(i -> {
+                String row = in.next();
+                return IntStream.range(0, width).map(j -> {
+                    char sym = row.charAt(j);
+                    return stateMap.getOrDefault(sym, Character.getNumericValue(sym));
+               });
+            }).toArray();
 
         State init = new State(stateMatrix);
 
-        for (int i = 0; i < height; i++) {
-            String row = in.next();
-            for (int j = 0; j < width; j++) {
-                char sym = row.charAt(j);
-                int index = toNumber(j, i);
-                stateMatrix[index] = stateMap.getOrDefault(sym, Character.getNumericValue(sym));
-            }
-        }
+        List<Ball> balls = IntStream.range(0, init.matrix.length)
+                .filter(i -> init.matrix[i] > 0)
+                .mapToObj(i -> new Ball(i, init.matrix[i]))
+                .collect(Collectors.toList());
 
-        List<Ball> balls = new ArrayList<>();
-        for (int i = 0; i < init.matrix.length; i++) {
-            if (init.matrix[i] > 0) balls.add(new Ball(i, init.matrix[i]));
-        }
-
-        for (Ball ball : balls) {
+        balls.forEach(ball -> {
             Deque<Move> moves = new ArrayDeque<>(findMoves(init, ball.pos, ball.shots, null));
             while (!moves.isEmpty()) {
                 Move move = moves.poll();
@@ -367,48 +346,43 @@ public class Solution {
                         path.push(currentMove);
                         currentMove = currentMove.prevMove;
                     }
-                    ball.paths.put(move.to, new Path(new ArrayList<>(path)));
+                    ball.paths.put(move.to, new ArrayList<>(path));
                 } else {
                     List<Integer> path = move.getPath();
                     int last = path.get(path.size() - 1);
                     State newState = move.state.doMove(move);
                     int newShots = newState.matrix[last];
-                    List<Move> newMoves = findMoves(newState, last, newShots, move);
-                    for (Move newMove : newMoves) {
-                        moves.push(newMove);
-                    }
+                    findMoves(newState, last, newShots, move).forEach(moves::push);
                 }
-            }
-        }
+            }}
+        );
 
-        balls.sort(Comparator.comparingInt(b -> b.paths.size()));
-
-        Deque<Node> stack2 = new ArrayDeque<>();
-        int ballIndex = 0;
+        Deque<Node> stack = new ArrayDeque<>();
         Set<Integer> wasted = new HashSet<>();
         Set<Integer> hashes = new HashSet<>();
-        int[] selected = new int[balls.size()];
+        final int[] selected = new int[balls.size()];
+        final int[] ballIndex = {0};
         Arrays.fill(selected, -1);
 
-        while(ballIndex < balls.size()) {
-            State currentState = Optional.ofNullable(stack2.peek()).map(node -> node.state).orElse(init);
-            Ball ball = balls.get(ballIndex);
-            Node node = ball.find(wasted, hashes, selected, ballIndex, currentState);
+        while(ballIndex[0] < balls.size()) {
+            State currentState = Optional.ofNullable(stack.peek()).map(node -> node.state).orElse(init);
+            Ball ball = balls.get(ballIndex[0]);
+            ball.find(wasted, hashes, selected, ballIndex[0], currentState)
+                    .ifPresentOrElse(node -> {
+                        stack.push(node);
+                        selected[ballIndex[0]] = node.vertex;
+                        ballIndex[0]++;
+                    }, () -> {
+                        stack.poll();
+                        selected[ballIndex[0]] = -1;
+                        ballIndex[0]--;
+                    });
 
-            if (node == null) {
-                stack2.poll();
-                selected[ballIndex] = -1;
-                ballIndex--;
-            } else {
-                selected[ballIndex] = node.vertex;
-                stack2.push(node);
-                ballIndex++;
-            }
             wasted.clear();
             wasted.addAll(allValues(selected));
             hashes.add(Arrays.hashCode(selected));
         }
 
-        printTarget(stack2.getFirst().state.matrix, width, height);
+        printTarget(stack.getFirst().state.matrix, width, height);
     }
 }
