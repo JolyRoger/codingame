@@ -105,6 +105,7 @@ object Player extends App {
   val graph = new Graph(numberOfCells)
   val hexagons = Array.ofDim[Hexagon](numberOfCells)
   var resourceMap = Map.empty[Int, Hexagon]
+  var eggMap = Map.empty[Int, Hexagon]
   var myAntSet = Set.empty[Hexagon]
 
   for(i <- 0 until numberOfCells) {
@@ -152,7 +153,13 @@ object Player extends App {
       hexagons(i).myAnts = myAnts
       hexagons(i).oppAnts = oppAnts
 
-      if (resources > 0) resourceMap = resourceMap + (i -> hexagons(i))
+      if (resources > 0) {
+        if (hexagons(i).sort == 1) {
+          eggMap = eggMap + (i -> hexagons(i))
+        } else if (hexagons(i).sort == 2) {
+          resourceMap = resourceMap + (i -> hexagons(i))
+        }
+      }
       if (myAnts > 0) myAntSet = myAntSet + hexagons(i)
 
       // Console.err.println(s"$resources, $myAnts, $oppAnts")
