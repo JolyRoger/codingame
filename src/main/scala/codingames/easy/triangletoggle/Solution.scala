@@ -69,7 +69,8 @@ object Solution extends App {
     var str = " "
     for (x <- 0 until wi) {
 //      val isSpace = triangleList.exists(triangle => pointInTriangle(Point(x, y), triangle.p1, triangle.p2, triangle.p3))
-      val isSpace = triangleList.exists(triangle => isPointInsideTriangle((x.toDouble, y.toDouble), triangle.p1, triangle.p2, triangle.p3))
+      val numberInPoint = triangleList.count(triangle => isPointInsideTriangle((x.toDouble, y.toDouble), triangle.p1, triangle.p2, triangle.p3))
+      val isSpace = numberInPoint % 2 == 1
       str = if (isSpace) str + " " + styleSym else  str + "*" + styleSym
     }
     println(str.trim)
