@@ -18,13 +18,13 @@ object Player extends App {
 //----------------------------------------------------------------------------------------------------------------------
 
   class Creature(val id: Int, val color: Int, val ctype: Int) {
-    var creatureX: Int = -1
-    var creatureY: Int = -1
+    var x: Int = -1
+    var y: Int = -1
     var creatureVx: Int = -1
     var creatureVy: Int = -1
     var visible = false
   }
-  case class Drone(droneId: Int, droneX: Int, droneY: Int, emergency: Int, battery: Int)
+  case class Drone(droneId: Int, x: Int, y: Int, emergency: Int, battery: Int)
 
   class Move(var isMove: Boolean, var xpos: Int, var ypos: Int, var isLightOn: Boolean) {
     def print = {
@@ -46,6 +46,8 @@ object Player extends App {
     new Creature(creatureId, color, _type)
   }
   val creaturesMap = creatures.map(creature => (creature.id, creature)).toMap
+
+  def euclidean(a: (Int, Int), b: (Int, Int)): Double = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
 
   // game loop
   while (true) {
@@ -95,8 +97,8 @@ object Player extends App {
       val Array(creatureId, creatureX, creatureY, creatureVx, creatureVy) = (readLine split " ").filter(_ != "").map(_.toInt)
       Console.err.println(s"$creatureId $creatureX $creatureY $creatureVx $creatureVy")
       val creature = creaturesMap(creatureId)
-      creature.creatureX = creatureX
-      creature.creatureY = creatureY
+      creature.x = creatureX
+      creature.y = creatureY
       creature.creatureVx = creatureVx
       creature.creatureVy = creatureVy
       creature.visible = true
@@ -110,10 +112,17 @@ object Player extends App {
       val creatureId = _creatureId.toInt
     }
 
+    val visibleCreatures = creatures.filter(creature => creature.visible )
 
     myDrones.foreach(drone => {
-      var nextMove = new Move(true, rand.nextInt(10000), rand.nextInt(10000), drone.battery > 5)
-      println(s"${nextMove.print} ::drone ${drone.droneId} moves. Battery=${drone.battery}")
+//      val sortedCreatures = visibleCreatures.sortBy(creature => euclidean((drone.x, drone.y), (creature.x, creature.y)))
+      val closestCreature = visibleCreatures.sortBy(creature => euclidean((drone.x, drone.y), (creature.x, creature.y))).headOption
+      val move = closestCreature.map(creature =>
+          new Move(true, creature.x, creature.y, drone.battery > 5 && euclidean((drone.x, drone.y), (creature.x, creature.y)) > 800))
+        .orElse(Some(new Move(true, rand.nextInt(10000), rand.nextInt(10000), drone.battery > 5)))
+        .get
+
+      println(s"${move.print} ::drone ${drone.droneId} moves. Battery=${drone.battery}")
     })
   }
 }
