@@ -1,5 +1,5 @@
-import math._
-import scala.util._
+package codingames.medium.marslander
+
 import scala.io.StdIn._
 
 /**
