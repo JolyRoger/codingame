@@ -1,4 +1,4 @@
-//package codingames.challenge.fish
+package codingames.challenge.fish
 
 import math._
 import scala.io.Source
@@ -10,11 +10,11 @@ import scala.io.StdIn._
  **/
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-//  val filename = "resources/fish/1.txt"
-//  val bufferedSource = Source.fromFile(filename)
-//  val data = bufferedSource.getLines
-//  def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
-//  def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
+  val filename = "resources/fish/1.txt"
+  val bufferedSource = Source.fromFile(filename)
+  val data = bufferedSource.getLines
+  def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
+  def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
 //----------------------------------------------------------------------------------------------------------------------
   object Quarter extends Enumeration {
     type Quarter = Value
@@ -57,6 +57,7 @@ object Player extends App {
                    InterestingPoint(2000, 8750), InterestingPoint(4000, 8750), InterestingPoint(6000, 8750), InterestingPoint(8000, 8750))
 
   var visitedPoints = Set.empty[InterestingPoint]
+  var targetPoints = Set.empty[InterestingPoint]
 
   val rand = new Random(System.currentTimeMillis)
   val creatureCount = readLine.toInt
@@ -73,22 +74,34 @@ object Player extends App {
 
   def euclidean(a: (Int, Int), b: (Int, Int)): Double = sqrt(pow(b._1 - a._1, 2) + pow(b._2 - a._2, 2))
   def reachable(distance: Double) = distance > 800 && distance < 2000
+  def newPoint(p1: (Int, Int), p2: (Int, Int)) = InterestingPoint(p2._1 + (p2._1 - p1._1), p2._2 + (p2._2 - p1._2))
   def visitPoint(drone: Drone, p: InterestingPoint) =
-    if (euclidean((drone.x, drone.y), (p.x, p.y)) < 50) (points - p, visitedPoints + p)
+    if (euclidean((drone.x, drone.y), (p.x, p.y)) < 600) {
+      targetPoints -= p
+      (points - p, visitedPoints + p)
+    }
     else (points, visitedPoints)
 
-  def nextClosestPoint(drone: Drone, distanceMap: Map[(Drone, InterestingPoint), Double]) = points.minByOption(p => distanceMap((drone, p)))
+  def nextClosestPoint(drone: Drone, distanceMap: Map[(Drone, InterestingPoint), Double]) = points.diff(targetPoints).minByOption(
+    p => distanceMap((drone, p))).map(p => {
+      targetPoints += p
+      if (euclidean((drone.x, drone.y), (p.x, p.y)) < 600) newPoint((drone.x, drone.y), (p.x, p.y))
+      else p
+  })
   def toMove(point: InterestingPoint, drone: Drone) = new Move(true, point.x, point.y, drone.battery > 5)
   def addDroneCreature(drone: Drone, creatureId: Int, radar: String): Unit = {
     val pair = (creatureId, radarMap(radar))
     drone.creatures = drone.creatures + pair
   }
-  def resurfacePointOpt(drone: Drone) = if (prevScannedByMe < creatures.count(_.scannedByMe)) {
-    Console.err.println(s"Need resurface! prevScannedByMe=$prevScannedByMe scannedCreatures=${creatures.count(_.scannedByMe)}")
-    Some(InterestingPoint(drone.x, 499))
-  } else {
-    Console.err.println(s"No need resurface. prevScannedByMe=$prevScannedByMe scannedCreatures=${creatures.count(_.scannedByMe)}")
-    None
+  def resurfacePointOpt(drone: Drone) = {
+    val myScanned = creatures.count(_.scannedByMe)
+    if (myScanned == creatureCount/* || prevScannedByMe < myScanned*/) {
+//      Console.err.println(s"Need resurface! prevScannedByMe=$prevScannedByMe scannedCreatures=${creatures.count(_.scannedByMe)}")
+      Some(InterestingPoint(drone.x, 499))
+    } else {
+//      Console.err.println(s"No need resurface. prevScannedByMe=$prevScannedByMe scannedCreatures=${creatures.count(_.scannedByMe)}")
+      None
+    }
   }
   def resurface(drone: Drone, score: Int, forMe: Boolean) {
     if (drone.y < 500) {
@@ -187,6 +200,8 @@ object Player extends App {
 
     if (points.isEmpty) points = visitedPoints
 
+    targetPoints = Set.empty
+
     val creatureDroneDistanceMap = (for (creature <- creatures; drone <- myDrones) yield {
       val distance = euclidean((drone.x, drone.y), (creature.x, creature.y))
       ((drone, creature), distance)
@@ -219,21 +234,18 @@ object Player extends App {
       val closestCreature = interestingCreatures.minByOption(creature => creatureDroneDistanceMap((drone, creature)))
       drone.lightOn = interestingCreatures.exists(creature => reachable(creatureDroneDistanceMap((drone, creature))))
       if (drone.lightOn) {
-//        // Console.err.println(s"Dron-${drone.id} sees interesting creature! Drone battery=${drone.battery}")
+         Console.err.println(s"Dron-${drone.id} sees interesting creature! Drone battery=${drone.battery}")
       }
-      val move = closestCreature.map(creature => {
-          new Move(true, creature.x, creature.y, drone.battery > 5 && drone.lightOn)
-        }).orElse(resurfacePointOpt(drone).map(point => toMove(point, drone)))
-          .orElse(nextClosestPoint(drone, dronePointsDistanceMap).map(point => toMove(point, drone)))
-          .orElse({
-            // Console.err.println("It should not happen")
-            Some(new Move(true, rand.nextInt(10000), rand.nextInt(10000), drone.battery > 5))
-        })
+      val move =
+        closestCreature.map(creature => new Move(true, creature.x, creature.y, drone.battery > 5 && drone.lightOn))
+        .orElse(resurfacePointOpt(drone).map(point => toMove(point, drone)))
+        .orElse(nextClosestPoint(drone, dronePointsDistanceMap).map(point => toMove(point, drone)))
+        .orElse(Some(new Move(false, -1, -1, drone.battery > 5)))
         .get
 
       println(s"${move.print} ::drone ${drone.id} <${drone.x},${drone.y}> moves. Battery=${drone.battery}")
 
-      resurface(drone, myScore, true)
+//      resurface(drone, myScore, true)
     })
   }
 }
