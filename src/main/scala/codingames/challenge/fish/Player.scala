@@ -30,8 +30,8 @@ object Player extends App {
   class Creature(val id: Int, val color: Int, val ctype: Int) extends Movable {
     var x: Int = -1
     var y: Int = -1
-    var creatureVx: Int = 0
-    var creatureVy: Int = 0
+    var creatureVx: Int = -1
+    var creatureVy: Int = -1
     var visible = false
     var scannedByMe = false
     var scannedByFoe = false
@@ -40,6 +40,8 @@ object Player extends App {
   }
   case class Drone(id: Int, x: Int, y: Int, emergency: Int, battery: Int) {
     var lightOn = false
+    var scanned = Set.empty[Int]
+    var saved = Set.empty[Int]
     var creatures = Set.empty[(Int, Quarter)]
     def toPoint = Point(x, y)
   }
@@ -55,10 +57,10 @@ object Player extends App {
   }
 
   val radarMap = Map("TL" -> Quarter.TL, "TR" -> Quarter.TR, "BR" -> Quarter.BR, "BL" -> Quarter.BL)
-  val ALLOWED_DIST = 501d
+  val ALLOWED_DIST = 520d
+  val AGGRESSIVE_SPEED = 540d
+  val PEACEFUL_SPEED = 270d
   val ENGINE_MOVE = 600d
-  var prevScannedByMe = 0
-  var prevScannedByFoe = 0
 
   var points = Set(Point(2000, 3750), Point(4000, 3750), Point(6000, 3750), Point(8000, 3750),
                    Point(2000, 6250), Point(4000, 6250), Point(6000, 6250), Point(8000, 6250),
@@ -83,6 +85,7 @@ object Player extends App {
 
   def euclidean(a: Point, b: Point): Double = hypot(b.x - a.x, b.y - a.y)
   def euclidean(a: (Int, Int), b: (Int, Int)): Double = hypot(b._1 - a._1, b._2 - a._2)
+  def valid(p: Point) = p.x >= 0 && p.x < 10000 && p.y >= 0 && p.y < 10000
   def reachable(distance: Double) = distance > 800 && distance < 2000
   def newPoint(p1: (Int, Int), p2: (Int, Int)) = Point(p2._1 + (p2._1 - p1._1), p2._2 + (p2._2 - p1._2))
   def visitPoint(drone: Drone, p: Point) =
@@ -98,7 +101,7 @@ object Player extends App {
       if (euclidean((drone.x, drone.y), (p.x, p.y)) < 600) newPoint((drone.x, drone.y), (p.x, p.y))
       else p
   })
-  def toMove(target: Movable, drone: Drone, distanceMap: DistanceMap, monsters: IndexedSeq[Creature]/*, avoid: Drone => Move*/) = {
+  def toMove(target: Movable, drone: Drone, distanceMap: DistanceMap, monsters: IndexedSeq[Creature], firstStep: Boolean = false) = {
 //    val dangerMonsters = monsters.map(monster => distanceMap((drone, monster)))
 //      .filter(distance => distance < )
     val (dp, tp) = (drone.toPoint, target.toPoint)
@@ -111,7 +114,7 @@ object Player extends App {
 //                        s"target:<${target.x},${target.y}> Real:<${nextPoint.x},${nextPoint.y}>" +
 //                        s" Dist:${euclidean((drone.x,drone.y),(target.x,target.y))} Dist2:${euclidean((drone.x,drone.y),(nextPoint.x,nextPoint.y))}")
     if (dangerMonsters.isEmpty)
-      new Move(true, nextPoint.x, nextPoint.y, target.lightOn(drone))
+      new Move(true, nextPoint.x, nextPoint.y, !firstStep && target.lightOn(drone))
     else {
       processDangers(drone, dangerMonsters, nextPoint, target)
     }
@@ -119,19 +122,9 @@ object Player extends App {
 
 //  def toMove(target: Creature, drone: Drone) = new Move(true, target.x, target.y, target.lightOn(drone))
 //  new Move(true, creature.x, creature.y, drone.battery > 5 && drone.lightOn)
-  def addDroneCreature(drone: Drone, creatureId: Int, radar: String): Unit = {
+  def addDroneCreature(drone: Drone, creatureId: Int, radar: String) {
     val pair = (creatureId, radarMap(radar))
     drone.creatures = drone.creatures + pair
-  }
-  def resurfacePointOpt(drone: Drone) = {
-    val myScanned = creatures.count(_.scannedByMe)
-    if (myScanned == creatureCount/* || prevScannedByMe < myScanned*/) {
-//      Console.err.println(s"Need resurface! prevScannedByMe=$prevScannedByMe scannedCreatures=${creatures.count(_.scannedByMe)}")
-      Some(Point(drone.x, 499))
-    } else {
-//      Console.err.println(s"No need resurface. prevScannedByMe=$prevScannedByMe scannedCreatures=${creatures.count(_.scannedByMe)}")
-      None
-    }
   }
   def calculateEndPoint(startPoint: Point, targetPoint: Point, distance: Double) = {
     val distX = targetPoint.x - startPoint.x
@@ -178,39 +171,46 @@ object Player extends App {
   def recalculateMoving(drone: Drone, monster: Creature, myTarget: Point) = {
     val points = for (i <- 0 until 8) yield getRotatedPoint(drone.toPoint, myTarget, i * Pi / 4)
     points.filter(valid)
-//          .minByOption(euclidean(drone.toPoint, _))
   }
   def processDangers(drone: Drone, dangerMonsters: IndexedSeq[Creature], nextPoint: Point, target: Movable) = {
     Console.err.println(s"Danger monsters found!")
     val monsterPoints = dangerMonsters.flatMap(monster => {
-//      val np = recalculateSinglePoint(drone, monster)
       val np = recalculateMoving(drone, monster, nextPoint)
-      Console.err.println(s"Drone=${drone.id}-${drone.toPoint} Monster=${monster.id}-${monster.toPoint} Old=${nextPoint} New=${np.mkString(",")}")
+      Console.err.println(s"Drone=from <${drone.id}> to <${drone.toPoint}>\tMonster=from<${monster.id}> to <${monster.toPoint}>")
       np
     })
-    //      monsterPoints.find(pm => !dangerMonsters.exists(monster => shortestDistance(drone, monster, pm) < ALLOWED_DIST))
     monsterPoints.filterNot(nextPointCandidate => dangerMonsters.exists(monster => checkForDanger(monster, drone, nextPointCandidate)))
       .minByOption(pointCandidate => euclidean(pointCandidate, nextPoint))
       .map(p => new Move(true, p.x, p.y, target.lightOn(drone)))
       .getOrElse(new Move(false, -1, -1, false))
   }
-  def resurface(drone: Drone, score: Int, forMe: Boolean) {
-    if (drone.y < 500) {
-      if (forMe) {
-        val byMeNum = creatures.count(_.scannedByMe)
-//        Console.err.println(s"RESURFACED! prevScannedByMe=$prevScannedByMe scannedCreatures=$byMeNum")
-        prevScannedByMe = byMeNum
-      } else {
-        val byFoeNum = creatures.count(_.scannedByFoe)
-        if (byFoeNum > prevScannedByFoe) prevScannedByFoe = byFoeNum
-      }
+  def resurfacePointOpt(drone: Drone) = {
+    if (creatures.count(_.scannedByMe) == creatureCount || drone.saved.size + 2 < drone.scanned.size) Some(Point(drone.x, 499))
+    else None
+  }
+  def resurface(drone: Drone) {
+    if (drone.y < 500) drone.saved = drone.scanned
+  }
+  def calculateNextMoveSpeed(creature: Creature, distIncrement: Double) = {
+    if (!creature.visible) {
+      None
+    } else if (creature.ctype > -1 || (creature.creatureVx == 0 && creature.creatureVy == 0)) {
+      Some(creature.toPoint)
+    } else {
+      val basis = Point(creature.creatureVx, creature.creatureVy)
+      val oldDist = euclidean(creature.toPoint, creature.nextPoint)
+      val newDist = oldDist + distIncrement
+      val angleX = basis.x / oldDist  // cos a
+      val angleY = basis.y / oldDist  // sin a
+
+      val newx = Math.round(creature.x + angleX * newDist).toInt
+      val newy =  Math.round(creature.y + angleY * newDist).toInt
+      Some(Point(newx, newy))
     }
   }
-  def valid(p: Point) = p.x >= 0 && p.x < 10000 && p.y >= 0 && p.y < 10000
+
 // ----- FUNCTIONS -----------------------------------------------------------------------------------------------------
-
-
-  while (true) {
+  for (step <- LazyList.from(0).takeWhile(_ < 201)) {
     val myScore = readLine.toInt
     Console.err.println(s"$myScore")
     val foeScore = readLine.toInt
@@ -254,24 +254,37 @@ object Player extends App {
     Console.err.println(s"$droneScanCount")
     for (_ <- 0 until droneScanCount) {
       val Array(droneId, creatureId) = (readLine split " ").filter(_ != "").map(_.toInt)
-      myDronesMap.get(droneId).foreach(_ => creaturesMap(creatureId).scannedByMe = true)
-      foeDronesMap.get(droneId).foreach(_ => creaturesMap(creatureId).scannedByFoe = true)
+      myDronesMap.get(droneId).foreach(drone => {
+        creaturesMap(creatureId).scannedByMe = true
+        drone.scanned += creatureId
+      })
+      foeDronesMap.get(droneId).foreach(drone => {
+        creaturesMap(creatureId).scannedByFoe = true
+        drone.scanned += creatureId
+      })
       Console.err.println(s"$droneId $creatureId")
     }
     val visibleCreatureCount = readLine.toInt
     Console.err.println(s"$visibleCreatureCount")
 
     creatures.foreach(creature => {
-      if (creature.visible) {
+      val nextMovePoint = calculateNextMoveSpeed(creature, PEACEFUL_SPEED)
+      if (creature.creatureVx > -1) {
         creature.x += creature.creatureVx
         creature.y += creature.creatureVy
       } else {
         creature.x = -1
         creature.y = -1
       }
+      nextMovePoint match {
+        case Some(p) =>
+          creature.creatureVx = p.x - creature.x
+          creature.creatureVy = p.y - creature.y
+        case None =>
+          creature.creatureVx = -1
+          creature.creatureVy = -1
+      }
       creature.visible = false
-      creature.creatureVx = 0
-      creature.creatureVy = 0
     })
     for (i <- 0 until visibleCreatureCount) {
       val Array(creatureId, creatureX, creatureY, creatureVx, creatureVy) = (readLine split " ").filter(_ != "").map(_.toInt)
@@ -317,38 +330,30 @@ object Player extends App {
     }).toMap
 
     val interestingCreatures = creatures.filter(creature => creature.visible && !creature.scannedByMe && creature.ctype > -1)
-//    Console.err.println(s"Interesting creatures size=${interestingCreatures.length}")
-//    Console.err.println(s"Visited points=${visitedPoints}")
-
-
-
-
-
-
 
     myDrones.foreach(drone => {
+      if (drone.emergency == 1) drone.scanned = drone.saved
+//      val targets = drone.creatures.filterNot(creatureIdRadar => creaturesMap(creatureIdRadar._1).scannedByMe).groupBy(_._2)
+
       points.foreach(point => {
         val (newPoints, newVisitedPoints) = visitPoint(drone, point)
         points = newPoints
         visitedPoints = newVisitedPoints
       })
 
+
       val closestCreature = interestingCreatures.minByOption(creature => creatureDroneDistanceMap.get((drone.id, creature.id)))
-//      drone.lightOn = interestingCreatures.exists(creature => reachable(creatureDroneDistanceMap.get((drone.id, creature.id))))
-//      if (drone.lightOn) {
-//         Console.err.println(s"Dron-${drone.id} sees interesting creature! Drone battery=${drone.battery}")
-//      }
-      val move =
-        closestCreature.map(creature => toMove(creature, drone, creatureDroneDistanceMap, monsters))
+
+      val move = closestCreature.map(creature => toMove(creature, drone, creatureDroneDistanceMap, monsters))
         .orElse(resurfacePointOpt(drone).map(point => toMove(point, drone, creatureDroneDistanceMap, monsters)))
-        .orElse(nextClosestPoint(drone, dronePointsDistanceMap).map(point => toMove(point, drone, creatureDroneDistanceMap, monsters)))
-        .orElse(Some(new Move(false, -1, -1, drone.battery > 5)))
-//        .map()
+        .orElse(nextClosestPoint(drone, dronePointsDistanceMap).map(point => toMove(point, drone, creatureDroneDistanceMap, monsters, step < 2)))
+        .orElse(Some(Point(drone.x, 499)).map(point => toMove(point, drone, creatureDroneDistanceMap, monsters)))
+        .orElse(Some(new Move(false, -1, -1, false)))
         .get
 
-      println(s"${move.print} ::drone ${drone.id} <${drone.x},${drone.y}> moves. Battery=${drone.battery}")
+      println(s"${move.print} ::drone ${drone.id} <${drone.x},${drone.y}> Step=$step Battery=${drone.battery}")
 
-//      resurface(drone, myScore, true)
+      resurface(drone)
     })
   }
 }
