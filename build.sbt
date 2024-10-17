@@ -4,7 +4,7 @@ version := "0.1"
 
 scalaVersion := "2.13.13"
 
-javacOptions ++= Seq("-source", "21", "-target", "21")
+javacOptions ++= Seq("-source", "17", "-target", "17")
 
 libraryDependencies += "org.scalactic" %% "scalactic" % "3.1.2"
 
