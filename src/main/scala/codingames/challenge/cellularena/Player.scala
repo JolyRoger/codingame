@@ -1,6 +1,7 @@
 package codingames.challenge.cellularena
 
 import math._
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util._
 import scala.io.StdIn._
@@ -38,6 +39,7 @@ object Player extends App {
   trait Tile {
     def x: Int
     def y: Int
+    def point: Point = (x, y)
   }
   case class Wall(x: Int, y: Int) extends Tile
   case class Organ(organId: Int, x: Int, y: Int, orgType: OrganType, orgDir: OrganDir, organParentId: Int, organRootId: Int, age: Int) extends Tile {
@@ -69,6 +71,47 @@ object Player extends App {
 
 
 // ---------------------------------------------------------------------------------------------------------------------
+
+  class Graph(amount: Int) {
+    val adjacent = (for (_ <- 0 until amount) yield Set[Int]()).toArray
+    var nodes = Map.empty[Int, Set[Int]]
+
+    def addEdge(v: Int, w: Int) {
+      adjacent(v) = adjacent(v) + w
+      adjacent(w) = adjacent(w) + v
+    }
+
+    def cutEdge(v: Int, w: Int) {
+      adjacent(v) = adjacent(v) - w
+      adjacent(w) = adjacent(w) - v
+    }
+
+    def bfs(s: Int, marked: Array[Boolean] = new Array[Boolean](amount)): (Array[Int], Array[Int]) = {
+      val edgeTo = Array.fill[Int](amount)(Int.MaxValue)
+      val distTo = Array.fill[Int](amount)(Int.MaxValue)
+      val q = mutable.Queue[Int]()
+      var i = 0
+
+      q.enqueue(s)
+      marked(s) = true
+      distTo(s) = 0
+      while (q.nonEmpty) {
+        val v = q.dequeue
+        i = i + 1
+        adjacent(v).filterNot(marked).foreach(
+          w => {
+            q.enqueue(w)
+            marked(w) = true
+            edgeTo(w) = v
+            distTo(w) = distTo(v) + 1
+          }
+        )
+      }
+      (edgeTo, distTo)
+    }
+  }
+
+// ---------------------------------------------------------------------------------------------------------------------
   def toMatrix(number: Int): (Int, Int) = (number % width, number / width)
   implicit def toNumber(point: (Int, Int)): Int = point._2 * width + point._1 % width
   implicit def stringToOrganDir(str: String): OrganDir = str match {
@@ -78,7 +121,18 @@ object Player extends App {
     case "E" => E
   }
 
+  @tailrec
+  def nextStep(from: Point, target: Point, edgeTo: Array[Int], distTo: Array[Int]): Option[Point] = {
+    if (distTo(target) > 10000) None else {
+      val nextP = toMatrix(edgeTo(target))
+//    Console.err.println(s"\tfrom=$from\ttarget=$target\tnextP=$nextP\tdistTo-nextP=${distTo(nextP)}")
+      if (distTo(nextP) == 1) Some(nextP) else nextStep(from, nextP, edgeTo, distTo)
+    }
+  }
   def euclidean(a: Point, b: Point): Double = hypot(b._1 - a._1, b._2 - a._2)
+  def inGraph(xy: Point)(implicit filterFun: Point => Boolean = _ => true) = !wallsSet.contains(xy) && !myOrganSet.contains(xy) && filterFun(xy)
+  def withHarvest(xy: Point) = !proteinMap.get((xy._1, xy._2)).exists(_.harvested)
+  def inGraphWithHarvest = (xy: Point) => inGraph(xy)(withHarvest)
 
   def adjWithDirection(organ: Point) = {
     Set(
@@ -95,7 +149,7 @@ object Player extends App {
     }
   }
 
-  def adj(organ: Point) = {
+  def adj(organ: Point)(implicit filterFun: Point => Boolean = _ => true) = {
     Set(
       (organ._1, organ._2 + 1),
       (organ._1, organ._2 - 1),
@@ -106,7 +160,8 @@ object Player extends App {
       xy._1 < width &&
       xy._2 >= 0 &&
       xy._2 < height &&
-      !wallsSet.contains(xy)
+      !wallsSet.contains(xy) &&
+      filterFun(xy)
     }
   }
 
@@ -117,22 +172,17 @@ object Player extends App {
     proteins = List.empty
   }
 
-  def harvest(organ: Organ) =
-    adj((organ.x, organ.y))
-      .filter(p => adj(p).exists(p => proteinSet.contains((p._1, p._2))))
+  def harvest(organ: Organ) = {
+    adj(organ.point)
+      .filter(p => adj(p).exists(p => proteinMap.get(p).exists(!_.harvested)))
       .map(moveCandidate => adjWithDirection(moveCandidate)
         .find(pd => proteinSet.contains((pd._1, pd._2)))
         .map(proteinInfo => Harvest(moveCandidate, (proteinInfo._1, proteinInfo._2), proteinInfo._3)))
       .headOption.flatten
 
-// ---------------------------------------------------------------------------------------------------------------------
+  }
 
-// -------- game loop ------------------------------
-  for (step <- LazyList.from(0).takeWhile(_ < 100)) {
-    val entityCount = readLine.toInt
-    if (debug) Console.err.println(s"$entityCount")
-    clean
-
+  def entry(entityCount: Int, step: Int) {
     for(_ <- 0 until entityCount) {
       // y: grid coordinate
       // _type: WALL, ROOT, BASIC, TENTACLE, HARVESTER, SPORER, A, B, C, D
@@ -140,7 +190,7 @@ object Player extends App {
       // organId: id of this entity if it's an organ, 0 otherwise
       // organDir: N,E,S,W or X if not an organ
       val Array(_x, _y, _type, _owner, _organId, organDir, _organParentId, _organRootId) = readLine split " "
-      if (debug) Console.err.println(s"${_x} ${_y} ${_type} ${_owner} ${_organId} ${organDir} ${_organParentId} ${_organRootId}")
+      if (debug) Console.err.println(s"${_x} ${_y} ${_type} ${_owner} ${_organId} $organDir ${_organParentId} ${_organRootId}")
 
       val x = _x.toInt
       val y = _y.toInt
@@ -167,10 +217,30 @@ object Player extends App {
       }
     }
 
-    myOrganSet = myOrgan.map(organ => (organ.x, organ.y)).toSet
-    oppOrganSet = oppOrgan.map(organ => (organ.x, organ.y)).toSet
-    proteinMap = proteins.map(protein => ((protein.x, protein.y), protein)).toMap
+  }
+    // ---------------------------------------------------------------------------------------------------------------------
+
+// -------- game loop ------------------------------
+  for (step <- LazyList.from(0).takeWhile(_ < 100)) {
+    val entityCount = readLine.toInt
+    if (debug) Console.err.println(s"$entityCount")
+    clean
+    entry(entityCount, step)
+
+    myOrganMap = myOrgan.map(organ => (organ.organId, organ)).toMap
+    oppOrganMap = oppOrgan.map(organ => (organ.organId, organ)).toMap
+    myOrganSet = myOrgan.map(organ => organ.point).toSet
+    oppOrganSet = oppOrgan.map(organ => organ.point).toSet
+    proteinMap = proteins.map(protein => (protein.point, protein)).toMap
     proteinSet = proteinMap.keySet
+
+    val graph = new Graph(width * height)
+    for { x <- 0 until width;
+          y <- 0 until height;
+          if inGraphWithHarvest((x, y))
+    } {
+      adj((x, y))(inGraphWithHarvest).foreach(a => graph.addEdge(a, (x, y)))
+    }
 
     // myD: your protein stock
     val Array(myA, myB, myC, myD) = (readLine split " ").withFilter(_ != "").map (_.toInt)
@@ -193,12 +263,15 @@ object Player extends App {
         .map(hrv => {
           val protein = proteinMap(hrv.protein)
           protein.harvested = true
-          s"GROW ${growCandidate.organId} ${hrv.candidate._1} ${hrv.candidate._2} HARVESTER ${hrv.direction}"
-        })
+          s"GROW ${growCandidate.organId} ${hrv.candidate._1} ${hrv.candidate._2} HARVESTER ${hrv.direction}"})
         .getOrElse {
-          val closestProtein = proteins.minByOption(protein => euclidean((protein.x, protein.y), (growCandidate.x, growCandidate.y)))
-          s"${closestProtein
-            .map(protein => s"GROW ${growCandidate.organId} ${protein.x} ${protein.y} BASIC")
+          adj(growCandidate.point)(inGraphWithHarvest).foreach(graph.addEdge(growCandidate.point, _))
+          val  (edgeTo, distTo) = graph.bfs(growCandidate.point)
+          val closestProtein = proteins.filterNot(_.harvested).minByOption(protein => distTo(protein.point))
+
+          s"${ closestProtein
+            .flatMap(protein => nextStep(growCandidate.point, protein.point, edgeTo, distTo)
+                .map(nextXY => s"GROW ${growCandidate.organId} ${nextXY._1} ${nextXY._2} BASIC"))
             .getOrElse(s"GROW ${growCandidate.organId} ${oppOrgan.head.x} ${oppOrgan.head.y} BASIC")}"
         }
 
