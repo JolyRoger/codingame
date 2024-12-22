@@ -30,7 +30,7 @@ object Player extends App {
 
   object OrganType extends Enumeration {
     type OrganType = Value
-    val ROOT, BASIC, HARVESTER, TENTACLE, SPORER = Value
+    val ROOT, BASIC, HARVESTER, TENTACLE, SPORER, UNKNOWN = Value
   }
 
   import OrganType._
@@ -46,7 +46,7 @@ object Player extends App {
     def grow(x: Int, y: Int) = s"GROW $organId $x $y BASIC"
   }
   case class Protein(x: Int, y: Int, var harvested: Boolean = false) extends Tile
-  case class Dao(from: Point, target: Point, direction: OrganDir)
+  case class Dao(organId: Int, candidate: Point, target: Point, direction: OrganDir)
 
   var walls = List.empty[Wall]
   var myOrgan = List.empty[Organ]
@@ -55,6 +55,8 @@ object Player extends App {
 
   var myOrganMap = Map.empty[Int, Organ]
   var oppOrganMap = Map.empty[Int, Organ]
+  var myOrganMapCoord = Map.empty[Point, Int]
+  var oppOrganMapCoord = Map.empty[Point, Int]
   var proteinMap = Map.empty[Point, Protein]
 
   lazy val wallsSet = walls.map(wall => (wall.x, wall.y)).toSet
@@ -120,6 +122,12 @@ object Player extends App {
     case "S" => S
     case "E" => E
   }
+  def selectOrganType(myA: Int, myB: Int, myC: Int, myD: Int): OrganType =
+    if (myA > 0) BASIC else
+    if (myB > 0 && myC > 0) TENTACLE else
+    if (myB > 0 && myD > 0) SPORER else
+    if (myC > 0 && myD > 0) HARVESTER else UNKNOWN
+
 
   @tailrec
   def nextStep(from: Point, target: Point, edgeTo: Array[Int], distTo: Array[Int]): Option[Point] =
@@ -146,6 +154,16 @@ object Player extends App {
   def inGraphWithTentacles(xy: Point) = inGraph(xy)(withHarvest)
 
   var graphFilter: Point => Boolean = _
+
+  def proteinVisible(organ: Organ, adjPoint: Point, myA: Int, myB: Int, myC: Int, myD: Int): Set[Dao] = {
+    proteinSet.withFilter(protein => adjPoint._1 == protein._1 || adjPoint._2 == protein._2)
+      .map(protein =>
+        if (adjPoint._2 < protein._2) Dao(organ.organId, adjPoint, protein, N) else
+        if (adjPoint._2 > protein._2) Dao(organ.organId, adjPoint, protein, S) else
+        if (adjPoint._1 < protein._1) Dao(organ.organId, adjPoint, protein, E) else
+          Dao(organ.organId, adjPoint, protein, W)
+      )
+  }
 
   def adjWithDirection(organ: Point)(implicit filterFun: Point => Boolean = _ => true) = {
     Set(
@@ -186,13 +204,29 @@ object Player extends App {
     proteins = List.empty
   }
 
+  def sporeShoot(myA: Int, myB: Int, myC: Int, myD: Int): Option[Dao] = {
+    if (myA > 0 && myB > 0 && myC > 0 && myD > 0) {
+      myOrgan.withFilter(_.orgType == SPORER).flatMap { organ =>
+        proteinVisible(organ, organ.point, myA, myB, myC, myD)
+      }.headOption
+    } else None
+  }
+
+  def sporer(myA: Int, myB: Int, myC: Int, myD: Int): Option[Dao] = {
+    if (myA > 0 && myB > 1 && myC > 0 && myD > 1) {
+      myOrgan.flatMap { organ =>
+        adj(organ.point)(air).flatMap(p => proteinVisible(organ, p, myA, myB, myC, myD))
+      }.headOption
+    } else None
+  }
+
   def harvest(organ: Organ)(implicit harvestFilter: => Boolean): Option[Dao] = {
     if (harvestFilter)
       adj(organ.point)(air)
         .filter(p => adj(p)(air).exists(p => proteinMap.get(p).exists(!_.harvested)))
         .map(moveCandidate => adjWithDirection(moveCandidate)
           .find(pd => proteinSet.contains((pd._1, pd._2)))
-          .map(proteinInfo => Dao(moveCandidate, (proteinInfo._1, proteinInfo._2), proteinInfo._3)))
+          .map(proteinInfo => Dao(organ.organId, moveCandidate, (proteinInfo._1, proteinInfo._2), proteinInfo._3)))
         .headOption.flatten
     else None
   }
@@ -202,7 +236,7 @@ object Player extends App {
       adj(organ.point)(air)
         .map(r => (r, adjWithDirection(r)(onlyOppOrgan)))
         .filter(_._2.nonEmpty)
-        .map(data => Dao(data._1, (data._2.head._1, data._2.head._2), data._2.head._3))
+        .map(data => Dao(organ.organId, data._1, (data._2.head._1, data._2.head._2), data._2.head._3))
         .headOption
     } else None
   }
@@ -254,6 +288,8 @@ object Player extends App {
 
     myOrganMap = myOrgan.map(organ => (organ.organId, organ)).toMap
     oppOrganMap = oppOrgan.map(organ => (organ.organId, organ)).toMap
+    myOrganMapCoord = myOrgan.map(organ => (organ.point, organ.organId)).toMap
+    oppOrganMapCoord = oppOrgan.map(organ => (organ.point, organ.organId)).toMap
     myOrganSet = myOrgan.map(organ => organ.point).toSet
     oppOrganSet = oppOrgan.map(organ => organ.point).toSet
     proteinMap = proteins.map(protein => (protein.point, protein)).toMap
@@ -284,28 +320,36 @@ object Player extends App {
       adj(growCandidate.point)(graphFilter).foreach(graph.addEdge(growCandidate.point, _))
       val  (edgeTo, distTo) = graph.bfs(growCandidate.point)
 
-      val command = harvest(growCandidate)(myC > 0 && myD > 0)
-        .map(hrv => {
-          val protein = proteinMap(hrv.target)
-          protein.harvested = true
-          s"GROW ${growCandidate.organId} ${hrv.from._1} ${hrv.from._2} HARVESTER ${hrv.direction}"})
+      val command = sporeShoot(myA, myB, myC, myD).map(dao => s"SPORE ${dao.organId} ${dao.target._1} ${dao.target._2}")
+        .orElse {
+          sporer(myA, myB, myC, myD).map(dao => s"GROW ${dao.organId} ${dao.candidate._1} ${dao.candidate._2} $SPORER ${dao.direction}")
+        }
+        .orElse {
+          harvest(growCandidate)(myC > 0 && myD > 0)
+          .map(hrv => {
+            val protein = proteinMap(hrv.target)
+            protein.harvested = true
+            s"GROW ${growCandidate.organId} ${hrv.candidate._1} ${hrv.candidate._2} $HARVESTER ${hrv.direction}"
+          })
+        }
         .orElse {
           tentacle(growCandidate)(myB > 0 && myC > 0)
-            .map(dao => s"GROW ${growCandidate.organId} ${dao.target._1} ${dao.target._2} TENTACLE ${dao.direction}")
+            .map(dao => s"GROW ${growCandidate.organId} ${dao.target._1} ${dao.target._2} $TENTACLE ${dao.direction}")
         }
         .orElse {
           val closestProtein = proteins.filterNot(_.harvested).minByOption(protein => distTo(protein.point))
           closestProtein
             .flatMap(protein => nextStep(growCandidate.point, protein.point, edgeTo, distTo)
-                .map(nextXY => s"GROW ${growCandidate.organId} ${nextXY._1} ${nextXY._2} BASIC"))
+                .map(nextXY => s"GROW ${growCandidate.organId} ${nextXY._1} ${nextXY._2} $BASIC"))
         }
         .orElse {
           nextStep(growCandidate.point, oppOrgan.head.point, edgeTo, distTo)
-          .map(p => s"GROW ${growCandidate.organId} ${p._1} ${p._2} BASIC")
+          .map(p => s"GROW ${growCandidate.organId} ${p._1} ${p._2} $BASIC")
         }
         .orElse {
           anyMove(Some(growCandidate))
-          .map(p => s"GROW ${growCandidate.organId} ${p._1} ${p._2} BASIC")
+            .filter(_ => myA > 0 || (myB > 0 && myC > 0) || (myC > 0 && myD > 0) || (myB > 0 && myD > 0))
+            .map(p => s"GROW ${growCandidate.organId} ${p._1} ${p._2} ${selectOrganType(myA, myB, myC, myD)}")
         }
         .getOrElse("WAIT")
 
