@@ -171,14 +171,28 @@ object Player extends App {
 
   var graphFilter: Point => Boolean = _
 
-  def proteinVisible(organ: Organ, adjPoint: Point): Set[Dao] = {
-    proteinSet.withFilter(protein => adjPoint._1 == protein._1 || adjPoint._2 == protein._2)
-      .map(protein =>
-        if (adjPoint._2 < protein._2) Dao(organ.organId, adjPoint, protein, N) else
-        if (adjPoint._2 > protein._2) Dao(organ.organId, adjPoint, protein, S) else
-        if (adjPoint._1 < protein._1) Dao(organ.organId, adjPoint, protein, E) else
-          Dao(organ.organId, adjPoint, protein, W)
-      )
+  def visible(point: Point, target: Point) = point._1 == target._1 || point._2 == target._2
+
+  def visibleToDao(organ: Organ, point: Point, target: Point) = {
+      if (point._2 < target._2) Dao(organ.organId, point, target, N) else
+      if (point._2 > target._2) Dao(organ.organId, point, target, S) else
+      if (point._1 < target._1) Dao(organ.organId, point, target, E) else
+      if (point._1 > target._1) Dao(organ.organId, point, target, W) else
+          throw IllegalArgumentException
+  }
+
+  def proteinHarvestVisible(organ: Organ, adjPoint: Point): Set[Dao] = {
+    proteinSet.flatMap {
+      p => {
+        val res = adjHarvest(p)(air).map(candidate => visibleToDao(proteinDirectVisible(organ, candidate)))
+        res
+      }
+    }
+  }
+
+  def proteinDirectVisible(organ: Organ, adjPoint: Point): Set[Dao] = {
+    proteinSet.withFilter(visible(adjPoint, _))
+      .map(visibleToDao(organ, adjPoint, _))
   }
 
   def adjWithDirection(organ: Point)(implicit filterFun: Point => Boolean = _ => true) = {
@@ -194,6 +208,25 @@ object Player extends App {
         xy._2 < height &&
         !wallsSet.contains((xy._1, xy._2)) &&
         filterFun((xy._1, xy._2))
+    }
+  }
+
+  def adjHarvest(p: Point)(implicit filterFun: Point => Boolean = _ => true) = {
+    Set(
+      (p._1, p._2 + 2),
+      (p._1, p._2 - 2),
+      (p._1 + 2, p._2),
+      (p._1 - 2, p._2),
+      (p._1 + 1, p._2 + 1),
+      (p._1 + 1, p._2 - 1),
+      (p._1 - 1, p._2 + 1),
+      (p._1 - 1, p._2 - 1)
+    ).filter { xy =>
+      xy._1 >= 0 &&
+        xy._1 < width &&
+        xy._2 >= 0 &&
+        xy._2 < height &&
+        filterFun(xy)
     }
   }
 
@@ -223,7 +256,7 @@ object Player extends App {
   def sporeShoot: Option[Dao] = {
     if (typeA > 0 && typeB > 0 && typeC > 0 && typeD > 0) {
       myOrgan.withFilter(_.orgType == SPORER).flatMap { organ =>
-        proteinVisible(organ, organ.point)
+        proteinDirectVisible(organ, organ.point)
       }.headOption
     } else None
   }
@@ -231,7 +264,7 @@ object Player extends App {
   def sporer: Option[Dao] = {
     if (typeA > 0 && typeB > 1 && typeC > 0 && typeD > 1) {
       myOrgan.flatMap { organ =>
-        adj(organ.point)(air).flatMap(p => proteinVisible(organ, p))
+        adj(organ.point)(air).flatMap(p => proteinHarvestVisible(organ, p))
       }.headOption
     } else None
   }
