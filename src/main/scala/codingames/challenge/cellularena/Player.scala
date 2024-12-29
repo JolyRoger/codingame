@@ -419,62 +419,72 @@ object Player extends App {
       val organs = myOrgans(key)
       growCandidate = organs.filterNot(_.wasted).maxBy(_.age)
 
-//      adj(growCandidate.point)(graphFilter).foreach(graph.addEdge(growCandidate.point, _))
-//      val  (edgeTo, distTo) = graph.bfs(growCandidate.point)
+      //      adj(growCandidate.point)(graphFilter).foreach(graph.addEdge(growCandidate.point, _))
+      //      val  (edgeTo, distTo) = graph.bfs(growCandidate.point)
 
-      val command: Option[String] =
+      val command =
         tentacle(growCandidate)(typeB > 0 && typeC > 0).map(dao => {
-              typeB -= 1; typeC -= 1
-              growCandidate.wasted = true
-              s"GROW ${growCandidate.organId} ${dao.target._1} ${dao.target._2} $TENTACLE ${dao.direction}"
-          }).orElse {
-        sporeShoot.map(dao => {
-            typeA -= 1; typeB -= 1; typeC -= 1; typeD -= 1
+          typeB -= 1;
+          typeC -= 1
+          growCandidate.wasted = true
+          s"GROW ${growCandidate.organId} ${dao.target._1} ${dao.target._2} $TENTACLE ${dao.direction}"
+        }).orElse {
+          sporeShoot.map(dao => {
+            typeA -= 1;
+            typeB -= 1;
+            typeC -= 1;
+            typeD -= 1
             growCandidate.wasted = true
             s"SPORE ${dao.organId} ${dao.target._1} ${dao.target._2}"
-          })}.orElse {
-        harvest(growCandidate)(typeC > 0 && typeD > 0).map(hrv => {
-              val protein = proteinMap(hrv.target)
-              protein.harvested = true
-              typeC -= 1; typeD -= 1
-              growCandidate.wasted = true
-              s"GROW ${growCandidate.organId} ${hrv.candidate._1} ${hrv.candidate._2} $HARVESTER ${hrv.direction}"
-            })}.orElse {
-        sporer.map(dao => {
-              typeB -= 1; typeD -= 1
-              growCandidate.wasted = true
-              s"GROW ${dao.organId} ${dao.candidate._1} ${dao.candidate._2} $SPORER ${dao.direction}"
-           })}.orElse {
-        val closestProtein = proteins.filterNot(_.harvested).minByOption(protein => euclidean(growCandidate.point, protein.point))
-          closestProtein.withFilter(_ => typeA > 0)
-//            .flatMap(protein => nextStep(growCandidate.point, protein.point, edgeTo, distTo)
-                .map(protein => {
-                  val nextXY = protein.point
-                  val organType = selectOrganType
-                  decrementProtein(organType)
-                  growCandidate.wasted = true
-                  s"GROW ${growCandidate.organId} ${nextXY._1} ${nextXY._2} $organType"
-              })}.orElse {
-              ////          nextStep(growCandidate.point, oppOrgan.head.point, edgeTo, distTo)
-              //          .map(p => {
-              //            typeA -= 1
-              //            growCandidate.wasted = true
-              //            s"GROW ${growCandidate.organId} ${p._1} ${p._2} $BASIC"
-              //          })
-              //        }
-              //        .orElse {
-        anyMove(Some(growCandidate))
-          .withFilter(_ => typeA > 0 || (typeB > 0 && typeC > 0) || (typeC > 0 && typeD > 0) || (typeB > 0 && typeD > 0))
-          .map(p => {
-            val organType = selectOrganType
-            decrementProtein(organType)
-            growCandidate.wasted = true
-            s"GROW ${growCandidate.organId} ${p._1} ${p._2} $organType"
           })
+        }.orElse {
+          harvest(growCandidate)(typeC > 0 && typeD > 0).map(hrv => {
+            val protein = proteinMap(hrv.target)
+            protein.harvested = true
+            typeC -= 1;
+            typeD -= 1
+            growCandidate.wasted = true
+            s"GROW ${growCandidate.organId} ${hrv.candidate._1} ${hrv.candidate._2} $HARVESTER ${hrv.direction}"
+          })
+        }.orElse {
+          sporer.map(dao => {
+            typeB -= 1;
+            typeD -= 1
+            growCandidate.wasted = true
+            s"GROW ${dao.organId} ${dao.candidate._1} ${dao.candidate._2} $SPORER ${dao.direction}"
+          })
+        }.orElse {
+          val closestProtein = proteins.filterNot(_.harvested).minByOption(protein => euclidean(growCandidate.point, protein.point))
+          closestProtein.withFilter(_ => typeA > 0)
+            //            .flatMap(protein => nextStep(growCandidate.point, protein.point, edgeTo, distTo)
+            .map(protein => {
+              val nextXY = protein.point
+              val organType = selectOrganType
+              decrementProtein(organType)
+              growCandidate.wasted = true
+              s"GROW ${growCandidate.organId} ${nextXY._1} ${nextXY._2} $organType"
+            })
+        }.orElse {
+          ////          nextStep(growCandidate.point, oppOrgan.head.point, edgeTo, distTo)
+          //          .map(p => {
+          //            typeA -= 1
+          //            growCandidate.wasted = true
+          //            s"GROW ${growCandidate.organId} ${p._1} ${p._2} $BASIC"
+          //          })
+          //        }
+          //        .orElse {
+          anyMove(Some(growCandidate))
+            .withFilter(_ => typeA > 0 || (typeB > 0 && typeC > 0) || (typeC > 0 && typeD > 0) || (typeB > 0 && typeD > 0))
+            .map(p => {
+              val organType = selectOrganType
+              decrementProtein(organType)
+              growCandidate.wasted = true
+              s"GROW ${growCandidate.organId} ${p._1} ${p._2} $organType"
+            })
         }.getOrElse("WAIT")
 
       println(command)
-
+    }
     println(s"--------------------------------------------------------------------")
   }
 }
