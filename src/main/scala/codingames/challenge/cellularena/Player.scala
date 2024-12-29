@@ -84,48 +84,6 @@ object Player extends App {
   val Array(width, height) = (readLine split " ").withFilter(_ != "").map (_.toInt)
   if (debug) Console.err.println(s"$width $height")
 
-
-// ---------------------------------------------------------------------------------------------------------------------
-
-//  class Graph(amount: Int) {
-//    val adjacent = (for (_ <- 0 until amount) yield Set[Int]()).toArray
-//    var nodes = Map.empty[Int, Set[Int]]
-//
-//    def addEdge(v: Int, w: Int) {
-//      adjacent(v) = adjacent(v) + w
-//      adjacent(w) = adjacent(w) + v
-//    }
-//
-//    def cutEdge(v: Int, w: Int) {
-//      adjacent(v) = adjacent(v) - w
-//      adjacent(w) = adjacent(w) - v
-//    }
-//
-//    def bfs(s: Int, marked: Array[Boolean] = new Array[Boolean](amount)): (Array[Int], Array[Int]) = {
-//      val edgeTo = Array.fill[Int](amount)(Int.MaxValue)
-//      val distTo = Array.fill[Int](amount)(Int.MaxValue)
-//      val q = mutable.Queue[Int]()
-//      var i = 0
-//
-//      q.enqueue(s)
-//      marked(s) = true
-//      distTo(s) = 0
-//      while (q.nonEmpty) {
-//        val v = q.dequeue
-//        i = i + 1
-//        adjacent(v).filterNot(marked).foreach(
-//          w => {
-//            q.enqueue(w)
-//            marked(w) = true
-//            edgeTo(w) = v
-//            distTo(w) = distTo(v) + 1
-//          }
-//        )
-//      }
-//      (edgeTo, distTo)
-//    }
-//  }
-
 // ---------------------------------------------------------------------------------------------------------------------
   def euclidean(a: Point, b: Point): Double = hypot(b._1 - a._1, b._2 - a._2)
   def toMatrix(number: Int): (Int, Int) = (number % width, number / width)
@@ -180,8 +138,6 @@ object Player extends App {
         air(from._1, target._2) || air(target._1, from._2)
   }
   def withTentacles(p: Point, myB: Int, myC: Int) = oppOrganFree(p) || (myB > 0 && myC > 0)
-  def inGraphWithHarvest(xy: Point) = inGraph(xy)(noHarvest)
-  def inGraphWithTentacles(xy: Point) = inGraph(xy)(noHarvest)
   @tailrec
   def anyMove(candidateOpt: Option[Organ]): Option[Point] =
     if (candidateOpt.isEmpty) None else {
@@ -189,8 +145,6 @@ object Player extends App {
       val out = adj(candidate.point)(airNoHarvest).headOption
       if (out.isDefined) out else anyMove(myOrganMap.get(candidate.organParentId))
     }
-
-  var graphFilter: Point => Boolean = _
 
   def visible(point: Point, target: Point) = {
     (point != target) && {
@@ -304,7 +258,6 @@ object Player extends App {
           val bbb = proteinHarvestVisible(organ, p)
           bbb
         })
-//        adj(organ.point)(air).flatMap(p => proteinDirectVisible(organ, p))
       }.headOption
     } else None
   }
@@ -402,26 +355,12 @@ object Player extends App {
     val requiredActionsCount = readLine.toInt // your number of organisms, output an action for each one in any order
     if (debug) Console.err.println(s"$requiredActionsCount")
 
-    graphFilter = p => inGraphWithHarvest(p) && withTentacles(p, typeB, typeC)
-
-//    val graph = new Graph(width * height)
-//    for { x <- 0 until width;
-//          y <- 0 until height;
-//          if graphFilter((x, y))
-//          } {
-//      adj((x, y))(graphFilter).foreach(a => graph.addEdge(a, (x, y)))
-//    }
-
     val myOrganIterator = myOrgans.keySet.iterator
 
     for(_ <- 0 until requiredActionsCount) {
       val key = myOrganIterator.next()
       val organs = myOrgans(key)
       growCandidate = organs.filterNot(_.wasted).maxBy(_.age)
-
-      //      adj(growCandidate.point)(graphFilter).foreach(graph.addEdge(growCandidate.point, _))
-      //      val  (edgeTo, distTo) = graph.bfs(growCandidate.point)
-
       val command =
         tentacle(growCandidate)(typeB > 0 && typeC > 0).map(dao => {
           typeB -= 1;
@@ -456,7 +395,6 @@ object Player extends App {
         }.orElse {
           val closestProtein = proteins.filterNot(_.harvested).minByOption(protein => euclidean(growCandidate.point, protein.point))
           closestProtein.withFilter(_ => typeA > 0)
-            //            .flatMap(protein => nextStep(growCandidate.point, protein.point, edgeTo, distTo)
             .map(protein => {
               val nextXY = protein.point
               val organType = selectOrganType
@@ -465,14 +403,6 @@ object Player extends App {
               s"GROW ${growCandidate.organId} ${nextXY._1} ${nextXY._2} $organType"
             })
         }.orElse {
-          ////          nextStep(growCandidate.point, oppOrgan.head.point, edgeTo, distTo)
-          //          .map(p => {
-          //            typeA -= 1
-          //            growCandidate.wasted = true
-          //            s"GROW ${growCandidate.organId} ${p._1} ${p._2} $BASIC"
-          //          })
-          //        }
-          //        .orElse {
           anyMove(Some(growCandidate))
             .withFilter(_ => typeA > 0 || (typeB > 0 && typeC > 0) || (typeC > 0 && typeD > 0) || (typeB > 0 && typeD > 0))
             .map(p => {
