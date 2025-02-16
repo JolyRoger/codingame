@@ -2,19 +2,66 @@ package codingames.hard.nospoon;
 
 import java.util.*;
 import java.io.*;
-import java.math.*;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 class Node {
     int id, x, y, nodeAmount;
     Set<Node> adj = new HashSet<>();
+    Set<Map<Integer, Integer>> config = new HashSet<>();
 
     public Node(int id, int i, int j, int nodeAmount) {
         this.id = id;
         this.x = i;
         this.y = j;
         this.nodeAmount = nodeAmount;
+    }
+
+    private <T, U, R> List<R> cartesian(List<T> strs, List<U> ints, BiFunction<T, U, R> joiner) {
+        var out = new ArrayList<R>(strs.size() * ints.size());
+
+        for (T str : strs) {
+            for (U i : ints) {
+                out.add(joiner.apply(str, i));
+            }
+        }
+
+        return out;
+    }
+
+    private List<int[]> fold(List<int[]> strLst, int[] str) {
+        var out = new ArrayList<int[]>(strLst.size() + 1);
+        out.addAll(strLst);
+        out.add(str);
+        return out;
+    }
+
+    void findConfig() {
+        var tmpConf = new ArrayList<List<int[]>>();
+
+        for (Node node : adj) {
+            var edgNum = Math.min(node.nodeAmount, Math.min(nodeAmount, 2));
+            var ints = new ArrayList<int[]>();
+
+            for (int i = 0; i <= edgNum; i++) {
+                ints.add(new int[] { node.id, i });
+            }
+            tmpConf.add(ints);
+        }
+
+        var it = tmpConf.iterator();
+        var cartesianProduct = it.next().stream().map(List::of).toList();
+
+        while (it.hasNext()) {
+            var nextList = it.next();
+            cartesianProduct = cartesian(cartesianProduct, nextList, this::fold);
+        }
+
+        var filteredConfig = cartesianProduct.stream()
+                .filter(config -> config.stream().mapToInt(cfg -> cfg[1]).sum() == nodeAmount)
+                .toList();
+        return;
     }
 }
 
@@ -75,12 +122,27 @@ public class Player {
         }
     }
 
+
     public static void main(String[] args) throws FileNotFoundException {
+        var list1 = List.of("No", "One", "Lives");
+        var list4 = List.of("Be", "Quick");
+        var list7 = List.of("Or", "Dead");
+
+        var metaList = List.of(list1, list4, list7);
+        var it = metaList.iterator();
+        var list1Lst = it.next().stream().map(List::of).toList();
+
+//        while (it.hasNext()) {
+//            var nextList = it.next();
+//            list1Lst = cartesian0(list1Lst, nextList, Player::joinStrLst);
+//        }
+
+//        if (true) return;
         var readIn = args.length > 0 ? new FileInputStream(filename) : System.in;
         var in = new Scanner(readIn);
 
-        width = in.nextInt(); // the number of cells on the X axis
-        height = in.nextInt(); // the number of cells on the Y axis
+        width = in.nextInt();
+        height = in.nextInt();
 
         System.err.println(width);
         System.err.println(height);
@@ -104,6 +166,7 @@ public class Player {
         var nodeMap = nodes.stream().collect(Collectors.toMap(node -> node.id, Function.identity()));
 
         nodes.forEach(node -> findAdj(node, nodeMap));
+        nodes.get(9).findConfig();
 
         System.err.println("Nodes: " + nodes.size());
 
