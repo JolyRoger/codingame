@@ -6,10 +6,18 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+record Link(Node from, Node to, int num) {
+
+    @Override
+    public String toString() {
+        return from.x + " " + from.y + " " + to.x + " " + to.y + " " + num;
+    }
+}
+
 class Node {
     int id, x, y, nodeAmount;
     Set<Node> adj = new HashSet<>();
-    Set<Map<Integer, Integer>> config = new HashSet<>();
+    Set<List<Link>> config = new HashSet<>();
 
     public Node(int id, int i, int j, int nodeAmount) {
         this.id = id;
@@ -37,7 +45,7 @@ class Node {
         return out;
     }
 
-    void findConfig() {
+    void findConfig(Map<Integer, Node> nodeMap) {
         var tmpConf = new ArrayList<List<int[]>>();
 
         for (Node node : adj) {
@@ -58,18 +66,17 @@ class Node {
             cartesianProduct = cartesian(cartesianProduct, nextList, this::fold);
         }
 
-        var filteredConfig = cartesianProduct.stream()
-                .filter(config -> config.stream().mapToInt(cfg -> cfg[1]).sum() == nodeAmount)
-                .toList();
-        return;
+        config = cartesianProduct.stream()
+                .filter(localConfig -> localConfig.stream().mapToInt(cfg -> cfg[1]).sum() == nodeAmount)
+                .map(mappedConfig -> mappedConfig.stream().map(mcfg -> new Link(this, nodeMap.get(mcfg[0]), mcfg[1])).toList())
+                .collect(Collectors.toSet());
     }
 }
 
 public class Player {
-    private static final String filename = "resources/nospoon/cg.txt";
     private static int width, height;
-    private static List<Node> nodes = new ArrayList<>();
-
+    private static final List<Node> nodes = new ArrayList<>();
+    private static Map<Integer, Node> nodeMap = new HashMap<>();
     private static int[] toMatrix(int number) {
         return new int[] { number % width, number / width };
     }
@@ -122,23 +129,17 @@ public class Player {
         }
     }
 
+//    private static void applyConfig(Node node, Map<Integer, Integer> config) {
+    private static void applyConfig(Node node, List<Link> config) {
+        config.forEach(link -> {
+//            nodeMap.get()
+        });
+
+
+    }
 
     public static void main(String[] args) throws FileNotFoundException {
-        var list1 = List.of("No", "One", "Lives");
-        var list4 = List.of("Be", "Quick");
-        var list7 = List.of("Or", "Dead");
-
-        var metaList = List.of(list1, list4, list7);
-        var it = metaList.iterator();
-        var list1Lst = it.next().stream().map(List::of).toList();
-
-//        while (it.hasNext()) {
-//            var nextList = it.next();
-//            list1Lst = cartesian0(list1Lst, nextList, Player::joinStrLst);
-//        }
-
-//        if (true) return;
-        var readIn = args.length > 0 ? new FileInputStream(filename) : System.in;
+        var readIn = args.length > 0 ? new FileInputStream("resources/nospoon/" + args[0] + ".txt") : System.in;
         var in = new Scanner(readIn);
 
         width = in.nextInt();
@@ -163,12 +164,24 @@ public class Player {
             }
         }
 
-        var nodeMap = nodes.stream().collect(Collectors.toMap(node -> node.id, Function.identity()));
+        nodeMap = nodes.stream().collect(Collectors.toMap(node -> node.id, Function.identity()));
 
-        nodes.forEach(node -> findAdj(node, nodeMap));
-        nodes.get(9).findConfig();
+        nodes.forEach(node -> {
+            findAdj(node, nodeMap);
+            node.findConfig(nodeMap);
+        });
 
         System.err.println("Nodes: " + nodes.size());
+
+        nodes.forEach(node -> {
+            System.err.println("id=" + node.id + " configs=" + node.config.size());
+            node.config.forEach(cfg -> {
+                System.err.println("----");
+                cfg.forEach(link -> System.err.println("\t" + link.to().id + " -> " + link.num()));
+            });
+        });
+
+        applyConfig(nodes.get(0), nodes.get(0).config.stream().findFirst().get());
 
         System.out.println("0 0 2 0 1");
         System.out.println("2 0 2 2 1");
