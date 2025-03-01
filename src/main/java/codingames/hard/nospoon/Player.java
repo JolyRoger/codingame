@@ -6,74 +6,91 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-record Link(Node from, Node to, int num) {
+class Player {
+    record Link(Node from, Node to, int num) {
 
-    @Override
-    public String toString() {
-        return from.x + " " + from.y + " " + to.x + " " + to.y + " " + num;
+        @Override
+        public int hashCode() {
+            return from.hashCode() + to.hashCode() + num;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
+
+            var lnk = (Link) obj;
+
+            return (from.id == lnk.from().id && to.id == lnk.to().id) ||
+                    (from.id == lnk.to().id && to.id == lnk.from().id);
+        }
+
+        @Override
+        public String toString() {
+            return from.x + " " + from.y + " " + to.x + " " + to.y + " " + num;
+        }
     }
-}
 
-class Node {
-    int id, x, y, nodeAmount;
-    Set<Node> adj = new HashSet<>();
-    Set<List<Link>> config = new HashSet<>();
+    static class Node {
+        int id, x, y, nodeAmount;
+        Set<Node> adj = new HashSet<>();
+        Set<List<Link>> config = new HashSet<>();
 
-    public Node(int id, int i, int j, int nodeAmount) {
-        this.id = id;
-        this.x = i;
-        this.y = j;
-        this.nodeAmount = nodeAmount;
-    }
+        public Node(int id, int i, int j, int nodeAmount) {
+            this.id = id;
+            this.x = i;
+            this.y = j;
+            this.nodeAmount = nodeAmount;
+        }
 
-    private <T, U, R> List<R> cartesian(List<T> strs, List<U> ints, BiFunction<T, U, R> joiner) {
-        var out = new ArrayList<R>(strs.size() * ints.size());
+        private <T, U, R> List<R> cartesian(List<T> strs, List<U> ints, BiFunction<T, U, R> joiner) {
+            var out = new ArrayList<R>(strs.size() * ints.size());
 
-        for (T str : strs) {
-            for (U i : ints) {
-                out.add(joiner.apply(str, i));
+            for (T str : strs) {
+                for (U i : ints) {
+                    out.add(joiner.apply(str, i));
+                }
             }
+
+            return out;
         }
 
-        return out;
-    }
+        private List<int[]> fold(List<int[]> strLst, int[] str) {
+            var out = new ArrayList<int[]>(strLst.size() + 1);
+            out.addAll(strLst);
+            out.add(str);
+            return out;
+        }
 
-    private List<int[]> fold(List<int[]> strLst, int[] str) {
-        var out = new ArrayList<int[]>(strLst.size() + 1);
-        out.addAll(strLst);
-        out.add(str);
-        return out;
-    }
+        void findConfig(Map<Integer, Node> nodeMap) {
+            var tmpConf = new ArrayList<List<int[]>>();
 
-    void findConfig(Map<Integer, Node> nodeMap) {
-        var tmpConf = new ArrayList<List<int[]>>();
+            for (Node node : adj) {
+                var edgNum = Math.min(node.nodeAmount, Math.min(nodeAmount, 2));
+                var ints = new ArrayList<int[]>();
 
-        for (Node node : adj) {
-            var edgNum = Math.min(node.nodeAmount, Math.min(nodeAmount, 2));
-            var ints = new ArrayList<int[]>();
-
-            for (int i = 0; i <= edgNum; i++) {
-                ints.add(new int[] { node.id, i });
+                for (int i = 0; i <= edgNum; i++) {
+                    ints.add(new int[] { node.id, i });
+                }
+                tmpConf.add(ints);
             }
-            tmpConf.add(ints);
+
+            var it = tmpConf.iterator();
+            var cartesianProduct = it.next().stream().map(List::of).toList();
+
+            while (it.hasNext()) {
+                var nextList = it.next();
+                cartesianProduct = cartesian(cartesianProduct, nextList, this::fold);
+            }
+
+            config = cartesianProduct.stream()
+                    .filter(localConfig -> localConfig.stream().mapToInt(cfg -> cfg[1]).sum() == nodeAmount)
+                    .map(mappedConfig -> mappedConfig.stream().map(mcfg -> new Link(this, nodeMap.get(mcfg[0]), mcfg[1])).toList())
+                    .collect(Collectors.toSet());
         }
-
-        var it = tmpConf.iterator();
-        var cartesianProduct = it.next().stream().map(List::of).toList();
-
-        while (it.hasNext()) {
-            var nextList = it.next();
-            cartesianProduct = cartesian(cartesianProduct, nextList, this::fold);
-        }
-
-        config = cartesianProduct.stream()
-                .filter(localConfig -> localConfig.stream().mapToInt(cfg -> cfg[1]).sum() == nodeAmount)
-                .map(mappedConfig -> mappedConfig.stream().map(mcfg -> new Link(this, nodeMap.get(mcfg[0]), mcfg[1])).toList())
-                .collect(Collectors.toSet());
     }
-}
 
-public class Player {
     private static int width, height;
     private static final List<Node> nodes = new ArrayList<>();
     private static Map<Integer, Node> nodeMap = new HashMap<>();
@@ -129,18 +146,20 @@ public class Player {
         }
     }
 
-//    private static void applyConfig(Node node, Map<Integer, Integer> config) {
     private static void applyConfig(Node node, List<Link> config) {
         config.forEach(link -> {
-//            nodeMap.get()
+            var toNode = nodeMap.get(link.to().id);
+            toNode.config = toNode.config.stream()
+                    .filter(links -> links.stream().anyMatch(l -> l.to().id == node.id && l.num() == link.num()))
+                    .collect(Collectors.toSet());
         });
-
-
     }
 
     public static void main(String[] args) throws FileNotFoundException {
         var readIn = args.length > 0 ? new FileInputStream("resources/nospoon/" + args[0] + ".txt") : System.in;
         var in = new Scanner(readIn);
+
+        var strategyStack = new Stack<List<Link>>();
 
         width = in.nextInt();
         height = in.nextInt();
@@ -164,6 +183,7 @@ public class Player {
             }
         }
 
+
         nodeMap = nodes.stream().collect(Collectors.toMap(node -> node.id, Function.identity()));
 
         nodes.forEach(node -> {
@@ -171,19 +191,32 @@ public class Player {
             node.findConfig(nodeMap);
         });
 
-        System.err.println("Nodes: " + nodes.size());
+//        System.err.println("Nodes: " + nodes.size());
 
-        nodes.forEach(node -> {
-            System.err.println("id=" + node.id + " configs=" + node.config.size());
-            node.config.forEach(cfg -> {
-                System.err.println("----");
-                cfg.forEach(link -> System.err.println("\t" + link.to().id + " -> " + link.num()));
+//        nodes.forEach(node -> {
+//            System.err.println("id=" + node.id + " configs=" + node.config.size());
+//            node.config.forEach(cfg -> {
+//                System.err.println("----");
+//                cfg.forEach(link -> System.err.println("\t" + link.to().id + " -> " + link.num()));
+//            });
+//        });
+
+        var oneStrategyNodeList = nodes.stream().filter(n -> n.config.size() == 1).toList();
+
+        while (!oneStrategyNodeList.isEmpty()) {
+            oneStrategyNodeList.forEach(node -> {
+                var config = node.config.stream().findFirst().get();
+                applyConfig(node, config);
+                node.config = Set.of();
+                strategyStack.push(config);
             });
-        });
+            oneStrategyNodeList = nodes.stream().filter(n -> n.config.size() == 1).toList();
+        }
 
-        applyConfig(nodes.get(0), nodes.get(0).config.stream().findFirst().get());
+        var setStack = strategyStack.stream()
+                .flatMap(strategy -> strategy.stream().filter(link -> link.num() != 0))
+                .collect(Collectors.toSet());
 
-        System.out.println("0 0 2 0 1");
-        System.out.println("2 0 2 2 1");
+        setStack.forEach(System.out::println);
     }
 }
