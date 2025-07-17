@@ -1,25 +1,33 @@
 package codingames.challenge.solk
 
 import math._
-import scala.io.Source
+import scala.io.{Source, StdIn}
 import scala.util._
-import scala.io.StdIn._
 
 /**
  * Win the water fight by controlling the most territory, or out-soak your opponent!
  **/
 object Player extends App {
-//------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/solk/1.txt"
-  val bufferedSource = Source.fromFile(filename)
-  val data = bufferedSource.getLines
-  def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
-  def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
-//----------------------------------------------------------------------------------------------------------------------
-  case class Point(x: Int, y: Int)
+//  def readLine = () => StdIn.readLine
+//  var readInt = () => StdIn.readInt
+
+  if (args.length > 0) {
+    val filename = args(0)
+    val bufferedSource = Source.fromFile(filename)
+    val data = bufferedSource.getLines
+    def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
+    def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
+  }
+
+  case class Point(x: Int, y: Int) {
+    override def toString: String = s"$x $y"
+  }
   case class Agent(id: Int, player: Int, shootCooldown: Int, optimalRange: Int, soakingPower: Int, splashBombs: Int) {
     var target: Point = _
+    def print = s"$id; MOVE $target"
   }
+
+  val targets = List(Point(6, 1), Point(6, 3))
 
   val myId = readLine.toInt // Your player id (0 or 1)
   Console.err.println(s"$myId")
@@ -39,6 +47,13 @@ object Player extends App {
   }
 
   val (myAgents, enemyAgents) = agents.partition(_.player == myId)
+
+  myAgents.foreach {
+    agent => if (agent.target == null) {
+      agent.target = targets(agent.id % 2)
+    }
+  }
+
   // width: Width of the game map
   // height: Height of the game map
   val Array(width, height) = (readLine split " ").filter(_ != "").map (_.toInt)
@@ -71,14 +86,14 @@ object Player extends App {
 
     val myAgentCount = readLine.toInt // Number of alive agents controlled by you
     Console.err.println(s"$myAgentCount")
-    for(i <- 0 until myAgentCount) {
 
       // Write an action using println
       // To debug: Console.err.println("Debug messages...")
 
 
       // One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
-      println("HUNKER_DOWN")
+    myAgents.foreach { agent =>
+      println(s"${agent.print}")
     }
   }
 }
