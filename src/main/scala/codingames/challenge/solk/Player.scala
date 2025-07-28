@@ -10,47 +10,37 @@ import scala.io.StdIn._
  **/
 object Player extends App {
 //------------------------------------------FILE ENTRY------------------------------------------------------------------
-  val filename = "resources/solk/1.txt"
-  val bufferedSource = Source.fromFile(filename)
-  val data = bufferedSource.getLines
-  def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
-  def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
+val filename = "resources/solk/1.txt"
+val bufferedSource = Source.fromFile(filename)
+val data = bufferedSource.getLines
+def readInt = if (data.hasNext) data.next.toInt else { System.exit(0); -1 }
+def readLine = if (data.hasNext) data.next else { System.exit(0); "" }
 //----------------------------------------------------------------------------------------------------------------------
 
   val debug = false
 
-  val action = List(
-    Map(2 -> "MOVE 2 10", 1 -> "MOVE 12 6"),
-    Map(2 -> "MOVE 1 10", 1 -> "MOVE 12 6"),
-    Map(2 -> "MOVE 2 10", 1 -> "MOVE 12 6"),
-    Map(2 -> "MOVE 1 10", 1 ->  "MOVE 12 6"),
-    Map(2 -> "MOVE 2 10", 1 ->  "MOVE 12 6; THROW 12 2"),
-    Map(2 -> "MOVE 1 10", 1 ->  "MOVE 12 5; THROW 12 9"),
-    Map(2 -> "MOVE 2 10", 1 ->  "MOVE 6 2"),
-    Map(2 -> "MOVE 1 10", 1 ->  "MOVE 6 2"),
-    Map(2 -> "MOVE 2 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 1 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 2 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 1 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 2 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 1 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 1 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 1 10", 1 -> "MOVE 6 2"),
-    Map(2 -> "MOVE 2 10; THROW 2 9", 1 -> "MOVE 6 2; THROW 2 2")
-  )
+  trait HasAdjacent {
+    def toPoints(coords: Set[(Int, Int)]): Set[Point] = coords.collect {
+      case (_x, _y) if _x >= 0 && _x < width && _y >= 0 && _y < height => Point(_x, _y)
+    }
+  }
 
-  case class Point(x: Int, y: Int) {
+  case class Point(x: Int, y: Int) extends HasAdjacent {
+    lazy val id = y * width + x
+    def adjPoints = toPoints(Set((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1), (x, y),
+      (x + 1, y + 1), (x - 1, y - 1), (x - 1, y + 1), (x + 1, y - 1)))
     override def toString: String = s"$x $y"
   }
-  case class Tile(id: Int, x: Int, y: Int, tileType: Int) {
 
+  case class Tile(id: Int, x: Int, y: Int, tileType: Int) {
     private def toTiles(coords: Set[(Int, Int)]) = coords.collect {
       case (_x, _y) if _x >= 0 && _x < width && _y >= 0 && _y < height => tiles(_y * width + _x)
     }.filter(_.tileType == 0)
 
     def calculateDistance(p: Point) = manhattanDistance(this.p, p)
+
     def calculateRating(agent: Int) = {
-      val distancePower = maxManhattanDistance - distanceMap(agent)
+      val distancePower = maxManhattanDistance - shelterDistanceMap(agent)
       val distanceWeight = 2
       val powerWeight = 1
       val rating = (distancePower * distanceWeight + power * powerWeight) / (distanceWeight * powerWeight)
@@ -60,9 +50,8 @@ object Player extends App {
     var power = 0
     val p = Point(x, y)
     var defendMap = Map.empty[Int, Int]
-    var distanceMap = Map.empty[Int, Int]
+    var shelterDistanceMap = Map.empty[Int, Int]
     val updatePower = () => power = defendMap.values.map(damageCalc).sum
-
 
     lazy val adjs = toTiles(Set((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
     lazy val leftDanger = toTiles(Set((x - 1, y), (x - 1, y - 1), (x - 1, y + 1))).map(_.id)
@@ -71,16 +60,37 @@ object Player extends App {
     lazy val downDanger = toTiles(Set((x, y + 1), (x + 1, y + 1), (x - 1, y + 1))).map(_.id)
   }
 
-  case class Agent(id: Int, mine: Boolean, shootCooldown: Int, optimalRange: Int, soakingPower: Int, var splashBombs: Int) {
+  case class Agent(id: Int, mine: Boolean, shootCooldown: Int, optimalRange: Int, soakingPower: Int, var splashBombs: Int) extends HasAdjacent {
     var x: Int = _
     var y: Int = _
     var cooldown: Int = _
     var wetness: Int = _
 
+    var enemyAgentsDistanceMap = Map.empty[Int, Int]
+
+    def inShelter(agent: Agent) = ???
+    def reachableEnemies = enemyAgentsDistanceMap.filter(kv => kv._2 <= optimalRange/* * 2*/)
+    def closestEnemy = reachableEnemies.minByOption(_._2)
     def p = Point(x, y)
     def tile = tiles(y * width + x)
     var target = List.empty[String]
-    def print = s"$id; ${target.mkString(";")}"
+    def print = s"$id; ${target.reverse.mkString("; ")}"
+
+    def adjPoints = toPoints(Set((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1), (x, y),
+                                             (x + 1, y + 1), (x - 1, y - 1), (x - 1, y + 1), (x + 1, y - 1)))
+
+    def manhattanAdjs(distance: Int): Set[Point] = {
+      val neighbors = for {
+        dx <- -distance to distance
+        dy = distance - abs(dx)
+        sign <- Seq(-1, 1)
+        (nx, ny) <- Seq((x + dx, y + dy * sign))
+        if nx >= 0 && ny >= 0 && nx < width && ny < height && tiles(ny * width + nx).tileType == 0
+      } yield Point(nx, ny)
+
+      neighbors.toSet
+    }
+
   }
 
   val damageCalc = Array(0, 2, 3)
@@ -160,52 +170,34 @@ object Player extends App {
     res
   }
 
-  case class Strategy(outsideAgent: Agent, insideAgent: Agent, var moveTargets: List[Point],
-                      var throwFirstOutsideTargets: Set[Point], insideAgentTarget: Point, lastOutsideTarget: Point)
-
-  def calculateStrategy() = {
-    val xs = squares(tile => tile.x).sorted
-    val ys = squares(tile => tile.y).sorted
-
-    val (x1Mid, x2Mid) = (xs.head + (xs(1) - xs.head) / 2, xs(2) + (xs(3) - xs(2)) / 2)
-    val (y1Mid, y2Mid) = (ys.head + (ys(1) - ys.head) / 2, ys(2) + (ys(3) - ys(2)) / 2)
-    val p1 = Point(x1Mid, y1Mid)
-    val p2 = Point(x1Mid, y2Mid)
-    val p3 = Point(x2Mid, y1Mid)
-    val p4 = Point(x2Mid, y2Mid)
-
-    val xTarget = x1Mid + (x2Mid - x1Mid) / 2
-    val yTarget = y1Mid + (y2Mid - y1Mid) / 2
-    val p1Target = Point(xTarget, y1Mid)
-    val p2Target = Point(xTarget, y2Mid)
-    val p3Target = Point(x1Mid, yTarget)
-    val p4Target = Point(x2Mid, yTarget)
-
-    val plist = Set(p1, p2, p3, p4)
-    val pTargetList = List(p1Target, p2Target, p3Target, p4Target)
-
-    val minDist = pTargetList.flatMap(target => plist.map(pp => manhattanDistance(pp, target))).min
-
-    val insideAgent = myAgents.minBy(_.splashBombs)
-    val outsideAgent = myAgents.maxBy(_.splashBombs)
-
-    var moveTargets = pTargetList.filter(target => plist.exists(pp => manhattanDistance(pp, target) == minDist))
-      .sortBy(target => manhattanDistance(insideAgent.p, target))(Ordering.Int.reverse)
-    //    val closestTarget = closestTargets.maxBy(target => manhattanDistance(insideAgent.p, target))
-    var throwFirstOutsideTargets = plist.filter(p => p.x == moveTargets.head.x || p.y == moveTargets.head.y)
-    val insideAgentTarget = plist.minBy(p => manhattanDistance(p, insideAgent.p))
-    val lastOutsideTarget = plist.find(p => p != insideAgentTarget && !throwFirstOutsideTargets.contains(p)).get
-
-    Strategy(outsideAgent, insideAgent, moveTargets, throwFirstOutsideTargets, insideAgentTarget, lastOutsideTarget)
+  def agentTargetMove(agent: Agent) = {
+    val enemyAgent = enemyAgents.minBy(enemy => enemy.optimalRange)
+    val adjs = enemyAgent.manhattanAdjs(agent.optimalRange)
+    adjs
   }
 
-  val updateDistance = () => {
+  val updateShelterDistance = () => {
     myAgents.foreach { agent =>
       shelters.foreach { shelter =>
         val distance = shelter.calculateDistance(agent.p)
-        shelter.distanceMap += (agent.id -> distance)
+        shelter.shelterDistanceMap += (agent.id -> distance)
       }
     }
+  }
+
+  val updateEnemyDistance = () => {
+    myAgents.foreach { agent =>
+      enemyAgents.foreach { enemy =>
+        val distance = manhattanDistance(enemy.p, agent.p)
+        agent.enemyAgentsDistanceMap += (enemy.id -> distance)
+      }
+    }
+  }
+  val calculatePoints = () => {
+    val enemyPoints = enemyAgents.map(_.p).toSet
+    val enemyAdjPoints = enemyAgents.flatMap(enemy => enemy.adjPoints).toSet
+    val multiplePoints = enemyAdjPoints.filter(p => p.adjPoints.count(enemyPoints.contains) > 1)
+    if (multiplePoints.isEmpty) enemyAdjPoints else multiplePoints
   }
 
   val updateCover = () => {
@@ -225,7 +217,7 @@ object Player extends App {
   val findBest = () => shelters.sortBy(shelter => shelter.power)(Ordering.Int.reverse)
   val findClosest = (agent: Agent) => shelters.sortBy(_.calculateDistance(agent.p))
 
-  lazy val strategy = calculateStrategy()
+  lazy val initialAgentPoints = agents.map(a => (a.id, a.p)).toMap
 
 // -------------------------------------------- game loop --------------------------------------------------------------
   var i = 0
@@ -239,14 +231,13 @@ object Player extends App {
       // wetness: Damage (0-100) this agent has taken
       val Array(agentId, x, y, cooldown, splashBombs, wetness) = (readLine split " ").filter(_ != "").map (_.toInt)
 
-//      if (debug) Console.err.println(s"AGENT FOUND! $agentId")
-
       val agent = agentMap(agentId)
       agent.x = x
       agent.y = y
       agent.cooldown = cooldown
       agent.splashBombs = splashBombs
       agent.wetness = wetness
+      agent.enemyAgentsDistanceMap = Map.empty
 
       if (debug) Console.err.println(s"$agentId $x $y $cooldown $splashBombs $wetness")
       agentId
@@ -261,44 +252,51 @@ object Player extends App {
     if (debug) Console.err.println(s"$myAgentCount")
 
     updateCover()
-    updateDistance()
+    updateShelterDistance()
+    updateEnemyDistance()
+    val splashPoints = calculatePoints()
 
     shelters.foreach(_.updatePower())
+    var sortedShelters = shelters.sortBy(_.power)(Ordering.Int.reverse)
 
-    if (manhattanDistance(strategy.outsideAgent.p, strategy.moveTargets.head) > 1) {
-      strategy.outsideAgent.target ::= s"MOVE ${strategy.moveTargets.head.x} ${strategy.moveTargets.head.y}"
-      strategy.insideAgent.target ::= s"MESSAGE Вперёд, коллега!"
-    } else if (strategy.throwFirstOutsideTargets.nonEmpty && manhattanDistance(strategy.outsideAgent.p, strategy.moveTargets.head) < 2) {
-      strategy.outsideAgent.target ::= s"MOVE ${strategy.moveTargets.head.x} ${strategy.moveTargets.head.y}; THROW ${strategy.throwFirstOutsideTargets.head.x} ${strategy.throwFirstOutsideTargets.head.y}"
-      if (strategy.outsideAgent.splashBombs < 2){
-        strategy.insideAgent.target ::= s"THROW ${strategy.insideAgentTarget.x} ${strategy.insideAgentTarget.y}"
-      } else strategy.insideAgent.target ::= "MESSAGE Разбомби их на фиг!"
-      strategy.throwFirstOutsideTargets = strategy.throwFirstOutsideTargets.tail
-      if (strategy.throwFirstOutsideTargets.isEmpty) {
-        strategy.moveTargets = strategy.moveTargets.tail
-        strategy.throwFirstOutsideTargets = Set(strategy.lastOutsideTarget)
+    myAgents.foreach { agent =>
+      val weakestEnemy = enemyAgents.maxBy(_.wetness)
+      val pts = weakestEnemy.manhattanAdjs(agent.optimalRange)
+      val targetPoint = pts.minByOption(targetPoint => manhattanDistance(agent.p, targetPoint)).getOrElse(weakestEnemy.p)
+
+//      val targetPoint = sortedShelters.headOption.map(t => {
+//        sortedShelters = sortedShelters.tail
+//        t.p
+//      }).getOrElse {
+//        val pts = minEnemy.manhattanAdjs(agent.optimalRange)
+//        pts.minByOption(targetPoint => manhattanDistance(agent.p, targetPoint)).getOrElse(minEnemy.p)
+//      }
+
+      agent.target ::= s"MOVE $targetPoint"
+
+      if (agent.splashBombs > 0) {
+        splashPoints.find(splashPoint => manhattanDistance(agent.p, splashPoint) < 5)
+//          .orElse(enemyAgents.find(enemy => manhattanDistance(agent.p, enemy.p) < 5).map(_.p))
+          .foreach(p => agent.target ::= s"THROW $p")
       }
-    } else {
-      Console.err.println(s"WHAT?!")
+      if (agent.cooldown == 0 && !agent.target.exists(_.startsWith("T"))) {
+        if (manhattanDistance(agent.p, weakestEnemy.p) <= agent.optimalRange && weakestEnemy.tile.defendMap.getOrElse(agent.id, 0) == 0) {
+          agent.target ::= s"SHOOT ${weakestEnemy.id}"
+        } else {
+          agent.closestEnemy.filter(enemyXY => tiles(enemyXY._2 + width + enemyXY._1).defendMap.getOrElse(agent.id, 0) == 0).foreach(shoot => {
+            agent.target ::= s"SHOOT ${shoot._1}"
+          })
+        }
+      }
+
+      if (!agent.target.exists(_.startsWith("S")) && !agent.target.exists(_.startsWith("T"))) {
+        agent.target ::= s"HUNKER_DOWN; MESSAGE В укрытие!;"
+      }
+
+//      agent.target ::= "MESSAGE Только вперёд!"
     }
 
-//    val sheltersBest = findBest()
-
-/*
     myAgents.foreach { agent =>
-      val bestShelter = shelters.maxBy(_.calculateRating(agent.id))
-      val bestTarget = enemyAgents.filter(enemy => manhattanDistance(enemy.p, agent.p) <= agent.optimalRange)
-                                  .minByOption(ea => ea.tile.defendMap.getOrElse(agent.id, 0))
-      bestTarget.foreach(bt => agent.target ::= s"SHOOT ${bt.id}")
-      agent.target ::= s"MOVE ${bestShelter.p}"
-    }
-
-    // Write an action using println
-    // To debug: if (debug) Console.err.println("Debug messages...")
-    // One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
-*/
-    myAgents.foreach { agent =>
-//      println(s"${agent.id}; ${action(i)(agent.id)}")
       println(s"${agent.print}")
       agent.target = List.empty
     }
